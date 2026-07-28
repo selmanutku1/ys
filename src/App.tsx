@@ -355,12 +355,14 @@ export default function App() {
 
   // Public Calendar routing state
   const [isPublicCalendar, setIsPublicCalendar] = useState<boolean>(() => {
-    return window.location.pathname.endsWith('/takvim') || window.location.search.includes('view=takvim') || window.location.hash === '#takvim';
+    const p = window.location.pathname;
+    return p.endsWith('/takvim') || p.endsWith('/kamptakvimi') || window.location.search.includes('view=takvim') || window.location.hash.includes('takvim');
   });
 
   useEffect(() => {
     const handleUrlChange = () => {
-      const isPublic = window.location.pathname.endsWith('/takvim') || window.location.search.includes('view=takvim') || window.location.hash === '#takvim';
+      const p = window.location.pathname;
+      const isPublic = p.endsWith('/takvim') || p.endsWith('/kamptakvimi') || window.location.search.includes('view=takvim') || window.location.hash.includes('takvim');
       setIsPublicCalendar(isPublic);
     };
     window.addEventListener('popstate', handleUrlChange);
@@ -1504,19 +1506,6 @@ export default function App() {
                           className="px-2 py-1.5 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300 rounded-lg text-[9px] font-black text-left border border-amber-100 hover:scale-[1.02] transition"
                         >
                           🥦 Yemekhane Alerji
-                        </button>
-                        <button
-                          onClick={() => {
-                            addAppNotification(
-                              "Meteoroloji Alarmı: Kamp bölgesinde saat 15:00 civarı şiddetli rüzgar ve fırtına beklenmektedir. Tüm açık etkinliklerin çadırlara çekilmesi rica olunur.",
-                              "warning",
-                              ["admin", "mudur", "teknik", "lider", "ogretmen"]
-                            );
-                            addSystemLog("Hava Durumu Bildirimi Tetiklendi", "Simülasyon İstasyonundan meteoroloji uyarısı fırlatıldı.");
-                          }}
-                          className="px-2 py-1.5 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300 rounded-lg text-[9px] font-black text-left border border-amber-100 hover:scale-[1.02] transition"
-                        >
-                          ⚡ Fırtına İhbarı
                         </button>
                         <button
                           onClick={() => {

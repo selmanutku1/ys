@@ -163,7 +163,7 @@ export default function PublicCalendarView({ activities, campCenters }: PublicCa
     } else if (baseUrl.endsWith('/')) {
       baseUrl = baseUrl.slice(0, -1);
     }
-    const publicUrl = baseUrl + '/takvim';
+    const publicUrl = baseUrl + '?view=takvim';
     navigator.clipboard.writeText(publicUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

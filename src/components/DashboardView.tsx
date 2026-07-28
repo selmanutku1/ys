@@ -46,12 +46,10 @@ import {
   Mic,
   Maximize2,
   Minimize2,
-  Cloud,
 } from 'lucide-react';
 import PeriodManagementView from './PeriodManagementView';
 import { HelpTooltip } from './HelpTooltip';
 import { signInWithGoogle, getCachedToken, logoutGoogle, auth } from '../utils/firebaseAuth';
-import { WeatherWidget } from './WeatherWidget';
 
 interface DashboardViewProps {
   participants: Participant[];
@@ -102,7 +100,6 @@ export default function DashboardView({
   const [showPeriodParticipants, setShowPeriodParticipants] = useState(false);
   
   const selectedCampCenter = campCenters.find(c => c.id === selectedCampCenterId);
-  const selectedCity = selectedCampCenter?.city || 'Istanbul';
   const [editingPeriod, setEditingPeriod] = useState<CampPeriod | null>(null);
 
   const [copiedCenterId, setCopiedCenterId] = useState<string | null>(null);
@@ -174,7 +171,6 @@ export default function DashboardView({
 
   // Manual Activity creation states
   const [isAddActivityModalOpen, setIsAddActivityModalOpen] = useState(false);
-  const [isWeatherModalOpen, setIsWeatherModalOpen] = useState(false);
   const [newActTitle, setNewActTitle] = useState('');
   const [newActType, setNewActType] = useState<'Spor' | 'Atölye' | 'Eğitim' | 'Seminer' | 'Eğlence'>('Eğitim');
   const [newActDate, setNewActDate] = useState('2026-08-01');
@@ -191,7 +187,7 @@ export default function DashboardView({
   const handleCopyPublicCalendarLink = () => {
     let baseUrl = window.location.origin + window.location.pathname;
     if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-    const publicUrl = baseUrl + '/takvim';
+    const publicUrl = baseUrl + '?view=takvim';
     navigator.clipboard.writeText(publicUrl);
     setCopiedPublicCalendarLink(true);
     setTimeout(() => setCopiedPublicCalendarLink(false), 2000);
@@ -889,7 +885,7 @@ export default function DashboardView({
           </div>
           <div className="flex flex-wrap gap-2">
             <a
-              href="./takvim"
+              href="?view=takvim"
               target="_blank"
               rel="noopener noreferrer"
               className="px-3.5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer border bg-white hover:bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
@@ -1519,7 +1515,7 @@ export default function DashboardView({
         </div>
         <div className="flex flex-wrap gap-2">
           <a
-            href="./takvim"
+            href="?view=takvim"
             target="_blank"
             rel="noopener noreferrer"
             className="px-3.5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer border bg-white hover:bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
@@ -1534,30 +1530,10 @@ export default function DashboardView({
             <FileText className="w-4 h-4" />
             Dönem Sonu Verimlilik Raporu (PDF)
           </button>
-          <button 
-            onClick={() => setIsWeatherModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center gap-2 transition cursor-pointer shadow-sm shadow-blue-600/20"
-          >
-            <Cloud className="w-4 h-4" />
-          </button>
         </div>
       </div>
       
-      {isWeatherModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden border border-gray-150 dark:border-gray-800 animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="font-bold">Hava Durumu</h3>
-              <button onClick={() => setIsWeatherModalOpen(false)} className="text-gray-500 cursor-pointer">✕</button>
-            </div>
-            <div className="p-4">
-              <WeatherWidget city={selectedCity} />
-            </div>
-          </div>
-        </div>
-      )}
-
-            {/* Mini Stats Grid */}
+      {/* Mini Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Capacity */}
         <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-2 sm:gap-3.5">
