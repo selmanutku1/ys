@@ -1,0 +1,10 @@
+{
+  "name": "Remix Remix: Remix: Remix: Remix: Yesilay Kamp Yonetim Sistemi",
+  "description": "Yeşilay Kamp Merkezleri için çok kullanıcılı, bungalov konaklama, başvuru ve yoklama takipli profesyonel Kamp Yönetim Sistemi (KYS) paneli ve mobil simülatörü.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

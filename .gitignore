@@ -1,0 +1,14 @@
+node_modules/
+dist
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Generated scripts and temporary files
+*.cjs
+*.sh
+*.txt
+*.js
+tmp_*
+block*.txt
