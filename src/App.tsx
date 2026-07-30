@@ -55,6 +55,7 @@ import ParticipantView from './components/ParticipantView';
 import RegistrationView from './components/RegistrationView';
 import HealthView from './components/HealthView';
 import DocumentationTab from './components/DocumentationTab';
+import NotificationTemplatesView from "./components/NotificationTemplatesView";
 import SettingsView from './components/SettingsView';
 import YemekhaneView from './components/YemekhaneView';
 import TechnicalOperationsView from './components/TechnicalOperationsView';
@@ -129,7 +130,7 @@ import {
   Sparkles,
   Plus, BarChart2,
   AlertTriangle,
-  ClipboardList
+  ClipboardList, Mail
 } from 'lucide-react';
 
 export interface LoginUser {
@@ -138,7 +139,7 @@ export interface LoginUser {
   username: string;
   role: 'admin' | 'mudur' | 'kayit' | 'saglik' | 'yemekhane' | 'teknik' | 'guvenlik' | 'gonullu';
   roleName: string;
-  allowedTabs: ('dashboard' | 'kamp-planlama' | 'bungalov' | 'katilimci' | 'kayit' | 'revir' | 'yemekhane' | 'teknik' | 'guvenlik' | 'dokümanlar' | 'ayarlar' | 'maliyet' | 'anket-analizi' | 'anket-yonetimi' | 'sistem-loglari' | 'dijital-arsiv' | 'olay-kayit' | 'sistem-guncellemeleri' | 'raporlar' | 'kahoot')[];
+  allowedTabs: ('dashboard' | 'kamp-planlama' | 'bungalov' | 'katilimci' | 'kayit' | 'revir' | 'yemekhane' | 'teknik' | 'guvenlik' | 'dokümanlar' | 'ayarlar' | 'maliyet' | 'anket-analizi' | 'anket-yonetimi' | 'sistem-loglari' | 'dijital-arsiv' | 'olay-kayit' | 'sistem-guncellemeleri' | 'raporlar' | 'kahoot' | 'bildirim-sablonlari')[];
   password: string;
 }
 
@@ -149,7 +150,7 @@ export const USERS_LIST: LoginUser[] = [
     username: 'mahmut',
     role: 'mudur',
     roleName: 'Kamp Operasyonları',
-    allowedTabs: ['dashboard', 'kamp-planlama', 'bungalov', 'katilimci', 'kayit', 'revir', 'yemekhane', 'teknik', 'guvenlik', 'maliyet', 'anket-analizi', 'anket-yonetimi', 'dokümanlar', 'ayarlar', 'sistem-loglari', 'dijital-arsiv', 'olay-kayit', 'sistem-guncellemeleri', 'raporlar'],
+    allowedTabs: ['dashboard', 'kamp-planlama', 'bungalov', 'katilimci', 'kayit', 'revir', 'yemekhane', 'teknik', 'guvenlik', 'maliyet', 'anket-analizi', 'anket-yonetimi', 'dokümanlar', 'ayarlar', 'sistem-loglari', 'dijital-arsiv', 'olay-kayit', 'sistem-guncellemeleri', 'raporlar', 'bildirim-sablonlari'],
     password: '55c5de31ec754ba40fb1687ff4f4e0d95142f5ca2765c4839b618329190a434b'
   },
   {
@@ -158,7 +159,7 @@ export const USERS_LIST: LoginUser[] = [
     username: 'admin',
     role: 'admin',
     roleName: 'Sistem Yöneticisi',
-    allowedTabs: ['dashboard', 'kamp-planlama', 'bungalov', 'katilimci', 'kayit', 'revir', 'yemekhane', 'teknik', 'guvenlik', 'maliyet', 'anket-analizi', 'anket-yonetimi', 'dokümanlar', 'ayarlar', 'sistem-loglari', 'dijital-arsiv', 'olay-kayit', 'sistem-guncellemeleri', 'raporlar'],
+    allowedTabs: ['dashboard', 'kamp-planlama', 'bungalov', 'katilimci', 'kayit', 'revir', 'yemekhane', 'teknik', 'guvenlik', 'maliyet', 'anket-analizi', 'anket-yonetimi', 'dokümanlar', 'ayarlar', 'sistem-loglari', 'dijital-arsiv', 'olay-kayit', 'sistem-guncellemeleri', 'raporlar', 'bildirim-sablonlari'],
     password: '55c5de31ec754ba40fb1687ff4f4e0d95142f5ca2765c4839b618329190a434b'
   },
   {
@@ -576,20 +577,43 @@ export default function App() {
   }, []);
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch((err) => {
-          console.error("Fullscreen request failed:", err);
-          alert("Tam ekran moduna geçilemedi. Uygulamayı yeni sekmede açmayı deneyin.");
-        });
-      } else {
-        alert("Tarayıcınız tam ekran modunu desteklemiyor.");
+    if (!document.fullscreenElement && !isFullscreen) {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          const promise = document.documentElement.requestFullscreen();
+          if (promise) {
+            promise.then(() => setIsFullscreen(true)).catch((err) => {
+              console.error("Fullscreen request failed, applying fallback layout:", err);
+              setIsFullscreen(true);
+            });
+          } else {
+            setIsFullscreen(true);
+          }
+        } else {
+          setIsFullscreen(true);
+        }
+      } catch (err) {
+        console.error("Fullscreen request threw an error, applying fallback layout:", err);
+        setIsFullscreen(true);
       }
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch((err) => {
-          console.error("Exit fullscreen failed:", err);
-        });
+      try {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          const promise = document.exitFullscreen();
+          if (promise) {
+            promise.then(() => setIsFullscreen(false)).catch((err) => {
+              console.error("Exit fullscreen failed:", err);
+              setIsFullscreen(false);
+            });
+          } else {
+            setIsFullscreen(false);
+          }
+        } else {
+          setIsFullscreen(false);
+        }
+      } catch (err) {
+        console.error("Exit fullscreen threw an error:", err);
+        setIsFullscreen(false);
       }
     }
   };
@@ -612,7 +636,7 @@ export default function App() {
   };
 
   // Active navigation tab
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'kamp-planlama' | 'bungalov' | 'katilimci' | 'kayit' | 'revir' | 'yemekhane' | 'teknik' | 'guvenlik' | 'dokümanlar' | 'ayarlar' | 'maliyet' | 'anket-analizi' | 'anket-yonetimi' | 'sistem-loglari' | 'dijital-arsiv' | 'olay-kayit' | 'raporlar' | 'sistem-guncellemeleri' | 'kahoot' | 'kamp-liderleri'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'kamp-planlama' | 'bungalov' | 'katilimci' | 'kayit' | 'revir' | 'yemekhane' | 'teknik' | 'guvenlik' | 'dokümanlar' | 'ayarlar' | 'maliyet' | 'anket-analizi' | 'anket-yonetimi' | 'sistem-loglari' | 'dijital-arsiv' | 'olay-kayit' | 'raporlar' | 'sistem-guncellemeleri' | 'kahoot' | 'kamp-liderleri' | 'bildirim-sablonlari'>('dashboard');
   const [registrationSubTab, setRegistrationSubTab] = useState<'form' | 'queue'>('form');
   const [technicalSubTab, setTechnicalSubTab] = useState<'dashboard' | 'issues' | 'requests' | 'ai-copilot' | 'reports' | 'areas'>('dashboard');
   const [isKayitMenuOpen, setIsKayitMenuOpen] = useState<boolean>(true);
@@ -623,7 +647,7 @@ export default function App() {
   const [externalSelectedParticipantId, setExternalSelectedParticipantId] = useState<string | null>(null);
 
   // Check role-based tab access
-  const hasAccess = (tab: 'dashboard' | 'kamp-planlama' | 'bungalov' | 'katilimci' | 'kayit' | 'revir' | 'yemekhane' | 'teknik' | 'guvenlik' | 'dokümanlar' | 'ayarlar' | 'maliyet' | 'anket-analizi' | 'anket-yonetimi' | 'sistem-loglari' | 'dijital-arsiv' | 'olay-kayit' | 'raporlar' | 'sistem-guncellemeleri' | 'kahoot' | 'kamp-liderleri') => {
+  const hasAccess = (tab: 'dashboard' | 'kamp-planlama' | 'bungalov' | 'katilimci' | 'kayit' | 'revir' | 'yemekhane' | 'teknik' | 'guvenlik' | 'dokümanlar' | 'ayarlar' | 'maliyet' | 'anket-analizi' | 'anket-yonetimi' | 'sistem-loglari' | 'dijital-arsiv' | 'olay-kayit' | 'raporlar' | 'sistem-guncellemeleri' | 'kahoot' | 'kamp-liderleri' | 'bildirim-sablonlari') => {
     if (!currentUser) return false;
     const access = (tab === 'kamp-planlama' && (currentUser.role === 'admin' || currentUser.role === 'mudur' || currentUser.role === 'gonullu')) ||
                    (tab === 'kamp-liderleri' && (currentUser.role === 'admin' || currentUser.role === 'mudur' || currentUser.role === 'gonullu')) ||
@@ -720,7 +744,7 @@ export default function App() {
     };
   }, [isMobileMenuOpen]);
 
-  const handleActiveTabChange = (tab: 'dashboard' | 'kamp-planlama' | 'bungalov' | 'katilimci' | 'kayit' | 'revir' | 'yemekhane' | 'teknik' | 'guvenlik' | 'dokümanlar' | 'ayarlar' | 'maliyet' | 'anket-analizi' | 'anket-yonetimi' | 'sistem-loglari' | 'dijital-arsiv' | 'olay-kayit' | 'raporlar' | 'sistem-guncellemeleri' | 'kahoot') => {
+  const handleActiveTabChange = (tab: 'dashboard' | 'kamp-planlama' | 'bungalov' | 'katilimci' | 'kayit' | 'revir' | 'yemekhane' | 'teknik' | 'guvenlik' | 'dokümanlar' | 'ayarlar' | 'maliyet' | 'anket-analizi' | 'anket-yonetimi' | 'sistem-loglari' | 'dijital-arsiv' | 'olay-kayit' | 'raporlar' | 'sistem-guncellemeleri' | 'kahoot' | 'bildirim-sablonlari') => {
     console.log('Navigating to tab:', tab);
     if (hasAccess(tab)) {
       setActiveTab(tab);
@@ -2198,6 +2222,17 @@ export default function App() {
             />
           )}
 
+          {hasAccess('bildirim-sablonlari') && (
+            <SidebarNavItem
+              id="bildirim-sablonlari"
+              label="Bildirim Şablonları"
+              icon={Mail}
+              isActive={activeTab === 'bildirim-sablonlari'}
+              isSidebarCollapsed={isSidebarCollapsed}
+              onClick={() => handleActiveTabChange('bildirim-sablonlari')}
+              hasAccessCheck={true}
+            />
+          )}
           {hasAccess('ayarlar') && (
             <SidebarNavItem
               id="ayarlar"
@@ -2410,6 +2445,9 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'bildirim-sablonlari' && (
+            <NotificationTemplatesView />
+          )}
           {activeTab === 'ayarlar' && (
             <SettingsView
               theme={theme}

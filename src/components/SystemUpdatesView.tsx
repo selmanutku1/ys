@@ -26,8 +26,8 @@ export default function SystemUpdatesView() {
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-gray-900">Gelişmiş Google Takvim Entegrasyonu</h4>
-              <p className="text-xs text-gray-600 mt-1">Sistem takvimi ile Google Calendar arasında çift yönlü senkronizasyon ve ajanda görünümleri sağlandı. Artık etkinliklerinizi doğrudan Google hesabınızdan yönetebilirsiniz.</p>
+              <h4 className="text-sm font-bold text-gray-900">Gelişmiş Outlook Takvim Entegrasyonu</h4>
+              <p className="text-xs text-gray-600 mt-1">Sistem takvimi ile Outlook Calendar arasında çift yönlü senkronizasyon ve ajanda görünümleri sağlandı. Artık etkinliklerinizi doğrudan Outlook hesabınızdan yönetebilirsiniz.</p>
             </div>
           </div>
         </div>

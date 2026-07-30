@@ -33,25 +33,41 @@ export default function PublicCalendarView({ activities, campCenters }: PublicCa
   const toggleFullscreen = () => {
     const docEl = document.documentElement;
     if (!isFullscreen) {
-      if (docEl.requestFullscreen) {
-        docEl.requestFullscreen().then(() => {
+      try {
+        if (docEl.requestFullscreen) {
+          const promise = docEl.requestFullscreen();
+          if (promise) {
+            promise.then(() => setIsFullscreen(true)).catch((err) => {
+              console.error("Fullscreen request failed, applying fallback layout:", err);
+              setIsFullscreen(true);
+            });
+          } else {
+            setIsFullscreen(true);
+          }
+        } else {
           setIsFullscreen(true);
-        }).catch((err) => {
-          console.error("Fullscreen request failed, applying fallback layout:", err);
-          setIsFullscreen(true);
-        });
-      } else {
+        }
+      } catch (err) {
+        console.error("Fullscreen request threw an error, applying fallback layout:", err);
         setIsFullscreen(true);
       }
     } else {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().then(() => {
+      try {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          const promise = document.exitFullscreen();
+          if (promise) {
+            promise.then(() => setIsFullscreen(false)).catch((err) => {
+              console.error("Exit fullscreen failed, resetting fallback layout:", err);
+              setIsFullscreen(false);
+            });
+          } else {
+            setIsFullscreen(false);
+          }
+        } else {
           setIsFullscreen(false);
-        }).catch((err) => {
-          console.error("Exit fullscreen failed, resetting fallback layout:", err);
-          setIsFullscreen(false);
-        });
-      } else {
+        }
+      } catch (err) {
+        console.error("Exit fullscreen threw an error:", err);
         setIsFullscreen(false);
       }
     }

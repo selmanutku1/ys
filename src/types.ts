@@ -41,6 +41,8 @@ export interface CampPeriod {
   isActive: boolean;
   status: 'Planlandı' | 'Aktif' | 'Tamamlandı';
   leaderId?: string;
+  leaderIds?: string[];
+  assignedStaffIds?: string[];
   projectId?: string;
   gender?: 'Kadın' | 'Erkek' | 'Karışık/Aile';
   minAge?: number;

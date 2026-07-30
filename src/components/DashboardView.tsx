@@ -49,7 +49,7 @@ import {
 } from 'lucide-react';
 import PeriodManagementView from './PeriodManagementView';
 import { HelpTooltip } from './HelpTooltip';
-import { signInWithGoogle, getCachedToken, logoutGoogle, auth } from '../utils/firebaseAuth';
+import { signInWithMicrosoft, getCachedToken, logoutMicrosoft, auth } from '../utils/firebaseAuth';
 
 interface DashboardViewProps {
   participants: Participant[];
@@ -117,8 +117,8 @@ export default function DashboardView({
     kapsamli: 'Kamp deneyiminizi (Genel, Tesis ve Eğitim) değerlendirmek için anketimize katılın ve görüşlerinizi paylaşın:'
   });
 
-  // Google Calendar Integration states
-  const [isGoogleCalendarModalOpen, setIsGoogleCalendarModalOpen] = useState(false);
+  // Outlook Calendar Integration states
+  const [isOutlookCalendarModalOpen, setIsOutlookCalendarModalOpen] = useState(false);
   const [gUser, setGUser] = useState<any>(null);
   const [gCalendars, setGCalendars] = useState<any[]>([]);
   const [selectedCalendarId, setSelectedCalendarId] = useState('primary');
@@ -132,12 +132,12 @@ export default function DashboardView({
   const [showManualTokenField, setShowManualTokenField] = useState(false);
   const [showTroubleshootPanel, setShowTroubleshootPanel] = useState(false);
 
-  // Dashboard Google Calendar sync card states
+  // Dashboard Outlook Calendar sync card states
   const [dashboardEvents, setDashboardEvents] = useState<any[]>([]);
   const [dashboardCalendarLoading, setDashboardCalendarLoading] = useState(false);
   const [dashboardCalendarError, setDashboardCalendarError] = useState<string | null>(null);
 
-  // Google Calendar View & Navigation states
+  // Outlook Calendar View & Navigation states
   const [calendarViewMode, setCalendarViewMode] = useState<'month' | 'week' | 'day' | 'agenda'>('month');
   const [calendarReferenceDate, setCalendarReferenceDate] = useState<Date>(new Date('2026-06-18'));
   const [isCalendarFullscreen, setIsCalendarFullscreen] = useState(false);
@@ -145,25 +145,41 @@ export default function DashboardView({
   const toggleCalendarFullscreen = () => {
     const docEl = document.documentElement;
     if (!isCalendarFullscreen) {
-      if (docEl.requestFullscreen) {
-        docEl.requestFullscreen().then(() => {
+      try {
+        if (docEl.requestFullscreen) {
+          const promise = docEl.requestFullscreen();
+          if (promise) {
+            promise.then(() => setIsCalendarFullscreen(true)).catch((err) => {
+              console.error("Fullscreen request failed, applying fallback layout:", err);
+              setIsCalendarFullscreen(true);
+            });
+          } else {
+            setIsCalendarFullscreen(true);
+          }
+        } else {
           setIsCalendarFullscreen(true);
-        }).catch((err) => {
-          console.error("Fullscreen request failed, applying fallback layout:", err);
-          setIsCalendarFullscreen(true);
-        });
-      } else {
+        }
+      } catch (err) {
+        console.error("Fullscreen request threw an error, applying fallback layout:", err);
         setIsCalendarFullscreen(true);
       }
     } else {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().then(() => {
+      try {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          const promise = document.exitFullscreen();
+          if (promise) {
+            promise.then(() => setIsCalendarFullscreen(false)).catch((err) => {
+              console.error("Exit fullscreen failed, resetting fallback layout:", err);
+              setIsCalendarFullscreen(false);
+            });
+          } else {
+            setIsCalendarFullscreen(false);
+          }
+        } else {
           setIsCalendarFullscreen(false);
-        }).catch((err) => {
-          console.error("Exit fullscreen failed, resetting fallback layout:", err);
-          setIsCalendarFullscreen(false);
-        });
-      } else {
+        }
+      } catch (err) {
+        console.error("Exit fullscreen threw an error:", err);
         setIsCalendarFullscreen(false);
       }
     }
@@ -193,27 +209,37 @@ export default function DashboardView({
     setTimeout(() => setCopiedPublicCalendarLink(false), 2000);
   };
 
-  // Fetch Dashboard Google Calendar events from server-side API proxy
+  // Fetch Dashboard Outlook Calendar events from server-side API proxy
   const fetchDashboardCalendarEvents = async () => {
     setDashboardCalendarLoading(true);
     setDashboardCalendarError(null);
     try {
       const token = getCachedToken();
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      if (!token) {
+        setDashboardCalendarLoading(false);
+        return;
       }
-      const response = await fetch(`/api/google-calendar/events?calendarId=${encodeURIComponent(selectedCalendarId)}`, {
-        headers
+
+      const now = new Date();
+      const thirtyDaysLater = new Date();
+      thirtyDaysLater.setDate(now.getDate() + 30);
+      
+      const url = `https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(selectedCalendarId)}/calendarView?startDateTime=${now.toISOString()}&endDateTime=${thirtyDaysLater.toISOString()}&$top=40&$orderby=start/dateTime`;
+
+      const response = await fetch(url, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Prefer': 'outlook.timezone="UTC"'
+        }
       });
       if (!response.ok) {
-        throw new Error('Google Calendar verileri API üzerinden çekilemedi.');
+        throw new Error('Outlook Calendar verileri API üzerinden çekilemedi.');
       }
       const data = await response.json();
-      setDashboardEvents(data.items || []);
+      setDashboardEvents(data.value || []);
     } catch (err: any) {
       console.error('Error fetching dashboard calendar events:', err);
-      setDashboardCalendarError(err.message || 'Google API bağlantı hatası.');
+      setDashboardCalendarError(err.message || 'Outlook API bağlantı hatası.');
     } finally {
       setDashboardCalendarLoading(false);
     }
@@ -225,7 +251,7 @@ export default function DashboardView({
       if (user) {
         setGUser(user);
       } else {
-        const manualToken = localStorage.getItem('kys_google_manual_token');
+        const manualToken = localStorage.getItem('kys_outlook_manual_token');
         if (manualToken) {
           setGUser({
             email: 'manuel-baglanti@yesilay.org.tr',
@@ -245,58 +271,61 @@ export default function DashboardView({
     fetchDashboardCalendarEvents();
   }, [selectedCalendarId]);
 
-  // Fetch Calendar List from Google Calendar API
+  // Fetch Calendar List from Outlook Calendar API
   const handleLoadCalendars = async () => {
     setGIsLoading(true);
     setGError(null);
     try {
       let token = getCachedToken();
       if (!token) {
-        // Trigger Google Login popup
-        const result = await signInWithGoogle();
+        // Trigger Outlook Login popup
+        const result = await signInWithMicrosoft();
         if (result) {
           token = result.accessToken;
           setGUser(result.user);
         } else {
-          throw new Error('Google Sign-In can not be initialized.');
+          throw new Error('Outlook Sign-In can not be initialized.');
         }
       }
       
-      const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await fetch('https://graph.microsoft.com/v1.0/me/calendars', {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Prefer': 'outlook.timezone="UTC"'
+        }
       });
-      if (!res.ok) throw new Error('Takvim listesi Google API\'den alınamadı.');
+      if (!res.ok) throw new Error('Takvim listesi Outlook API\'den alınamadı.');
       const data = await res.json();
-      setGCalendars(data.items || []);
-      setGSuccessMsg('Google hesabınız bağlandı ve takvimleriniz başarıyla yüklendi.');
+      setGCalendars(data.value || []);
+      setGSuccessMsg('Outlook hesabınız bağlandı ve takvimleriniz başarıyla yüklendi.');
       setTimeout(() => setGSuccessMsg(null), 4000);
     } catch (err: any) {
       console.error('Error loading calendars:', err);
       if (err.code === 'auth/popup-closed-by-user' || err.message?.includes('popup-closed-by-user') || err.message?.includes('closed-by-user')) {
-        setGError('Google Giriş Penceresi engellendi veya kapatıldı. Bu durum tarayıcınızın iframe içinde pop-up açılmasını kısıtlamasından kaynaklanır. Lütfen popup engelleyicinizi kapatın, uygulamayı yeni sekmede açın veya aşağıdaki Manuel Bağlantı seçeneğini kullanın.');
+        setGError('Outlook Giriş Penceresi engellendi veya kapatıldı. Bu durum tarayıcınızın iframe içinde pop-up açılmasını kısıtlamasından kaynaklanır. Lütfen popup engelleyicinizi kapatın, uygulamayı yeni sekmede açın veya aşağıdaki Manuel Bağlantı seçeneğini kullanın.');
         setShowTroubleshootPanel(true);
       } else {
-        setGError(err.message || 'Google bağlantısı sırasında bir hata oluştu.');
+        setGError(err.message || 'Outlook bağlantısı sırasında bir hata oluştu.');
       }
     } finally {
       setGIsLoading(false);
     }
   };
 
-  // Fetch events from selected Google Calendar
-  const handleFetchGoogleEvents = async () => {
+  // Fetch events from selected Outlook Calendar
+  const handleFetchOutlookEvents = async () => {
     setGIsLoading(true);
     setGError(null);
     setGEvents([]);
     try {
       let token = getCachedToken();
       if (!token) {
-        const result = await signInWithGoogle();
+        const result = await signInWithMicrosoft();
         if (result) {
           token = result.accessToken;
           setGUser(result.user);
         } else {
-          throw new Error('Google Sign-In yetkilendirmesi başarısız.');
+          throw new Error('Outlook Sign-In yetkilendirmesi başarısız.');
         }
       }
 
@@ -304,34 +333,31 @@ export default function DashboardView({
       const thirtyDaysLater = new Date();
       thirtyDaysLater.setDate(now.getDate() + 30);
       
-      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(selectedCalendarId)}/events?` + new URLSearchParams({
-        timeMin: now.toISOString(),
-        timeMax: thirtyDaysLater.toISOString(),
-        singleEvents: 'true',
-        orderBy: 'startTime',
-        maxResults: '40'
-      });
+      const url = `https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(selectedCalendarId)}/calendarView?startDateTime=${now.toISOString()}&endDateTime=${thirtyDaysLater.toISOString()}&$top=40&$orderby=start/dateTime`; //
 
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Prefer': 'outlook.timezone="UTC"'
+        }
       });
-      if (!res.ok) throw new Error('Seçili takvimin etkinlikleri Google API\'den yüklenemedi.');
+      if (!res.ok) throw new Error('Seçili takvimin etkinlikleri Outlook API\'den yüklenemedi.');
       const data = await res.json();
-      setGEvents(data.items || []);
+      setGEvents(data.value || []);
     } catch (err: any) {
-      console.error('Error fetching google events:', err);
+      console.error('Error fetching outlook events:', err);
       if (err.code === 'auth/popup-closed-by-user' || err.message?.includes('popup-closed-by-user') || err.message?.includes('closed-by-user')) {
-        setGError('Google Giriş Penceresi engellendi veya kapatıldı. Bu durum tarayıcınızın iframe içinde pop-up açılmasını kısıtlamasından kaynaklanır. Lütfen popup engelleyicinizi kapatın, uygulamayı yeni sekmede açın veya aşağıdaki Manuel Bağlantı seçeneğini kullanın.');
+        setGError('Outlook Giriş Penceresi engellendi veya kapatıldı. Bu durum tarayıcınızın iframe içinde pop-up açılmasını kısıtlamasından kaynaklanır. Lütfen popup engelleyicinizi kapatın, uygulamayı yeni sekmede açın veya aşağıdaki Manuel Bağlantı seçeneğini kullanın.');
         setShowTroubleshootPanel(true);
       } else {
-        setGError(err.message || 'Seçili takvimin etkinlikleri Google API\'den yüklenemedi.');
+        setGError(err.message || 'Seçili takvimin etkinlikleri Outlook API\'den yüklenemedi.');
       }
     } finally {
       setGIsLoading(false);
     }
   };
 
-  // Save manual Access Token for Google Calendar connection fallback
+  // Save manual Access Token for Outlook Calendar connection fallback
   const handleSaveManualToken = async (tokenVal: string) => {
     if (!tokenVal.trim()) {
       setGError('Lütfen geçerli bir Access Token girin.');
@@ -341,22 +367,25 @@ export default function DashboardView({
     setGError(null);
     const cleanToken = tokenVal.trim();
     try {
-      const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-        headers: { Authorization: `Bearer ${cleanToken}` }
+      const res = await fetch('https://graph.microsoft.com/v1.0/me/calendars', {
+        headers: { 
+          Authorization: `Bearer ${cleanToken}`,
+          'Prefer': 'outlook.timezone="UTC"'
+        }
       });
       if (!res.ok) {
         throw new Error('Takvim listesi bu token ile alınamadı. Token süresi dolmuş veya yetkisiz olabilir.');
       }
       const data = await res.json();
-      setGCalendars(data.items || []);
+      setGCalendars(data.value || []);
       
       // Save to localStorage if valid
-      localStorage.setItem('kys_google_manual_token', cleanToken);
+      localStorage.setItem('kys_outlook_manual_token', cleanToken);
       setGUser({
         email: 'manuel-baglanti@yesilay.org.tr',
         displayName: 'Manuel Entegrasyon'
       });
-      setGSuccessMsg('Manuel Google API bağlantısı başarıyla kuruldu!');
+      setGSuccessMsg('Manuel Outlook API bağlantısı başarıyla kuruldu!');
       setTimeout(() => setGSuccessMsg(null), 5000);
       setShowManualTokenField(false);
       setShowTroubleshootPanel(false);
@@ -368,7 +397,7 @@ export default function DashboardView({
     }
   };
 
-  // Google Calendar navigation and helper functions
+  // Outlook Calendar navigation and helper functions
   const getCalendarTitleText = () => {
     if (calendarViewMode === 'month') {
       return calendarReferenceDate.toLocaleDateString('tr-TR', { year: 'numeric', month: 'long' });
@@ -416,14 +445,14 @@ export default function DashboardView({
     setCalendarReferenceDate(new Date('2026-06-18'));
   };
 
-  // Sync / Import Google Calendar events to local application activities state
+  // Sync / Import Outlook Calendar events to local application activities state
   const handleSyncEventsToKYS = () => {
     if (gEvents.length === 0) return;
     
-    // Map google events to CampActivity model
+    // Map outlook events to CampActivity model
     const mapped = gEvents.map((ge: any): CampActivity => {
       let type: 'Spor' | 'Atölye' | 'Eğitim' | 'Seminer' | 'Eğlence' = 'Eğitim';
-      const text = `${ge.summary || ''} ${ge.description || ''}`.toLowerCase();
+      const text = `${ge.subject || ''} ${ge.bodyPreview || ''}`.toLowerCase();
       if (text.includes('spor') || text.includes('futbol') || text.includes('voleybol') || text.includes('turnuva') || text.includes('koşu')) {
         type = 'Spor';
       } else if (text.includes('atölye') || text.includes('workshop') || text.includes('sanat') || text.includes('müzik') || text.includes('resim')) {
@@ -434,16 +463,16 @@ export default function DashboardView({
         type = 'Eğlence';
       }
 
-      const timeStr = ge.start?.dateTime || ge.start?.date || new Date().toISOString();
+      const timeStr = ge.start?.dateTime ? ge.start.dateTime + "Z" : new Date().toISOString();
 
       return {
         id: `g-${ge.id}`,
         campCenterId: selectedCampCenterId,
-        title: ge.summary || 'Google Takvimi Etkinliği',
+        title: ge.subject || 'Outlook Takvimi Etkinliği',
         type,
         dateTime: timeStr,
-        instructorId: 'Google Sync',
-        location: ge.location || 'Kamp Alanı'
+        instructorId: 'Outlook Sync',
+        location: ge.location?.displayName || 'Kamp Alanı'
       };
     });
 
@@ -452,28 +481,28 @@ export default function DashboardView({
     const combined = [...existingFiltered, ...mapped];
 
     onUpdateActivities(combined);
-    onAddLog('Google Takvimi Eşitlendi', `Google Takviminden ${mapped.length} program etkinliği KYS sistemine aktarıldı.`);
+    onAddLog('Outlook Takvimi Eşitlendi', `Outlook Takviminden ${mapped.length} program etkinliği KYS sistemine aktarıldı.`);
     setGSuccessMsg(`${mapped.length} kamp programı etkinliği başarıyla tüm kullanıcılara eşitlendi!`);
     setTimeout(() => {
       setGSuccessMsg(null);
-      setIsGoogleCalendarModalOpen(false);
+      setIsOutlookCalendarModalOpen(false);
     }, 2500);
   };
 
-  const handlePushActivitiesToGoogle = async () => {
+  const handlePushActivitiesToOutlook = async () => {
     setGIsLoading(true);
     setGError(null);
     try {
       const localActs = activities.filter(act => !act.id.startsWith('g-'));
       if (localActs.length === 0) {
-        alert('Google\'a göndermek için yeni oluşturulmuş yerel aktivite bulunmuyor.');
+        alert('Outlook\'a göndermek için yeni oluşturulmuş yerel aktivite bulunmuyor.');
         return;
       }
-      onAddLog('Google Takvimi Eşitlendi', `${localActs.length} yerel etkinlik Google Takvime başarıyla yüklendi.`);
-      alert(`${localActs.length} kamp programı etkinliği Google Takviminize başarıyla yüklendi ve senkronize edildi!`);
+      onAddLog('Outlook Takvimi Eşitlendi', `${localActs.length} yerel etkinlik Outlook Takvime başarıyla yüklendi.`);
+      alert(`${localActs.length} kamp programı etkinliği Outlook Takviminize başarıyla yüklendi ve senkronize edildi!`);
     } catch (err: any) {
       console.error(err);
-      setGError('Etkinlikler Google Takvime gönderilemedi.');
+      setGError('Etkinlikler Outlook Takvime gönderilemedi.');
     } finally {
       setGIsLoading(false);
     }
@@ -489,7 +518,7 @@ export default function DashboardView({
   // Sync a single event from the dashboard sync card to the local KYS activities
   const handleSyncSingleEvent = (ge: any) => {
     let type: 'Spor' | 'Atölye' | 'Eğitim' | 'Seminer' | 'Eğlence' = 'Eğitim';
-    const text = `${ge.summary || ''} ${ge.description || ''}`.toLowerCase();
+    const text = `${ge.subject || ''} ${ge.bodyPreview || ''}`.toLowerCase();
     if (text.includes('spor') || text.includes('futbol') || text.includes('voleybol') || text.includes('turnuva') || text.includes('koşu')) {
       type = 'Spor';
     } else if (text.includes('atölye') || text.includes('workshop') || text.includes('sanat') || text.includes('müzik') || text.includes('resim')) {
@@ -500,15 +529,15 @@ export default function DashboardView({
       type = 'Eğlence';
     }
 
-    const timeStr = ge.start?.dateTime || ge.start?.date || new Date().toISOString();
+    const timeStr = ge.start?.dateTime ? ge.start.dateTime + "Z" : new Date().toISOString();
     const newAct: CampActivity = {
       id: `g-${ge.id}`,
       campCenterId: selectedCampCenterId,
-      title: ge.summary || 'Google Takvimi Etkinliği',
+      title: ge.subject || 'Outlook Takvimi Etkinliği',
       type,
       dateTime: timeStr,
-      instructorId: 'Google Sync',
-      location: ge.location || 'Kamp Alanı'
+      instructorId: 'Outlook Sync',
+      location: ge.location?.displayName || 'Kamp Alanı'
     };
 
     // Prevent duplicate IDs
@@ -518,17 +547,17 @@ export default function DashboardView({
     }
 
     onUpdateActivities([newAct, ...activities]);
-    onAddLog('Etkinlik Eşitlendi', `"${newAct.title}" Google Takvim etkinliği KYS programına tekil olarak senkronize edildi.`);
+    onAddLog('Etkinlik Eşitlendi', `"${newAct.title}" Outlook Takvim etkinliği KYS programına tekil olarak senkronize edildi.`);
     alert(`"${newAct.title}" başarıyla KYS programına eklendi!`);
   };
 
-  // Sync all dashboard Google Calendar events to KYS activities
+  // Sync all dashboard Outlook Calendar events to KYS activities
   const handleSyncAllDashboardEvents = () => {
     if (dashboardEvents.length === 0) return;
     
     const mapped = dashboardEvents.map((ge: any): CampActivity => {
       let type: 'Spor' | 'Atölye' | 'Eğitim' | 'Seminer' | 'Eğlence' = 'Eğitim';
-      const text = `${ge.summary || ''} ${ge.description || ''}`.toLowerCase();
+      const text = `${ge.subject || ''} ${ge.bodyPreview || ''}`.toLowerCase();
       if (text.includes('spor') || text.includes('futbol') || text.includes('voleybol') || text.includes('turnuva') || text.includes('koşu')) {
         type = 'Spor';
       } else if (text.includes('atölye') || text.includes('workshop') || text.includes('sanat') || text.includes('müzik') || text.includes('resim')) {
@@ -539,15 +568,15 @@ export default function DashboardView({
         type = 'Eğlence';
       }
 
-      const timeStr = ge.start?.dateTime || ge.start?.date || new Date().toISOString();
+      const timeStr = ge.start?.dateTime ? ge.start.dateTime + "Z" : new Date().toISOString();
       return {
         id: `g-${ge.id}`,
         campCenterId: selectedCampCenterId,
-        title: ge.summary || 'Google Takvimi Etkinliği',
+        title: ge.subject || 'Outlook Takvimi Etkinliği',
         type,
         dateTime: timeStr,
-        instructorId: 'Google Sync',
-        location: ge.location || 'Kamp Alanı'
+        instructorId: 'Outlook Sync',
+        location: ge.location?.displayName || 'Kamp Alanı'
       };
     });
 
@@ -556,7 +585,7 @@ export default function DashboardView({
     const combined = [...existingFiltered, ...mapped];
 
     onUpdateActivities(combined);
-    onAddLog('Google Takvimi Eşitlendi', `Google Takviminden ${mapped.length} program etkinliği KYS sistemine toplu olarak aktarıldı.`);
+    onAddLog('Outlook Takvimi Eşitlendi', `Outlook Takviminden ${mapped.length} program etkinliği KYS sistemine toplu olarak aktarıldı.`);
     alert(`${mapped.length} etkinlik başarıyla KYS kamp programına eşitlendi!`);
   };
 
@@ -1601,14 +1630,14 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* Günlük Kamp Programı & Google Calendar Takvimi */}
+      {/* Günlük Kamp Programı & Outlook Calendar Takvimi */}
       <div className={`bg-white p-5 rounded-xl border border-gray-100 shadow-sm print:hidden ${isCalendarFullscreen ? 'fixed inset-0 z-[100] m-0 rounded-none w-full h-full overflow-y-auto' : ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-3 mb-4">
           <div>
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
               <CalendarDays className="w-4.5 h-4.5 text-emerald-600" />
               Kamp Takvimi
-              <HelpTooltip content="Kamp programındaki aktiviteleri bu alandan takip edebilir, silebilir veya Google Calendar API entegrasyonu ile tüm etkinlikleri otomatik senkronize edebilirsiniz." />
+              <HelpTooltip content="Kamp programındaki aktiviteleri bu alandan takip edebilir, silebilir veya Outlook Calendar API entegrasyonu ile tüm etkinlikleri otomatik senkronize edebilirsiniz." />
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">Katılımcıların ve eğitmenlerin günlük aktivitelerini yönetin.</p>
           </div>
@@ -1622,11 +1651,11 @@ export default function DashboardView({
               {isCalendarFullscreen ? <Minimize2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Maximize2 className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
             </button>
             <button
-              onClick={() => setIsGoogleCalendarModalOpen(true)}
+              onClick={() => setIsOutlookCalendarModalOpen(true)}
               className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
             >
               <Globe className="w-3.5 h-3.5" />
-              Google Calendar Takvimi
+              Outlook Calendar Takvimi
             </button>
             <button
               onClick={() => setIsAddActivityModalOpen(true)}
@@ -1638,7 +1667,7 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* Filtered Activities and Google Calendar side-by-side */}
+        {/* Filtered Activities and Outlook Calendar side-by-side */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
           {/* Left: Camp Program Activities (Sistemdeki Aktiviteler) */}
           <div className="lg:col-span-2 space-y-3">
@@ -1647,7 +1676,7 @@ export default function DashboardView({
                 Kamp Programı (KYS)
               </span>
               <span className="text-[10px] text-gray-400 font-semibold">
-                Google Calendar Görünümü
+                Outlook Calendar Görünümü
               </span>
             </div>
 
@@ -2148,7 +2177,7 @@ export default function DashboardView({
                             <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                               <CalendarDays className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                               <p className="text-xs font-semibold text-gray-600">Henüz planlanmış kamp programı bulunmamaktadır.</p>
-                              <p className="text-[10px] text-gray-400 mt-1">Yeni aktivite ekleyebilir veya sağ panelden Google Takvimi'ni eşitleyebilirsiniz.</p>
+                              <p className="text-[10px] text-gray-400 mt-1">Yeni aktivite ekleyebilir veya sağ panelden Outlook Takvimi'ni eşitleyebilirsiniz.</p>
                             </div>
                           );
                         }
@@ -2246,12 +2275,12 @@ export default function DashboardView({
             })()}
           </div>
 
-          {/* Right: Google Calendar Synchronization Side-Panel */}
+          {/* Right: Outlook Calendar Synchronization Side-Panel */}
           <div className="lg:col-span-1 border-t lg:border-t-0 lg:border-l border-gray-150 lg:pl-6 pt-4 lg:pt-0 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md tracking-wider uppercase block">
-                  Google Calendar API
+                  Outlook Calendar API
                 </span>
                 <button
                   onClick={fetchDashboardCalendarEvents}
@@ -2283,7 +2312,7 @@ export default function DashboardView({
                 
                 {gUser ? (
                   <button
-                    onClick={() => setIsGoogleCalendarModalOpen(true)}
+                    onClick={() => setIsOutlookCalendarModalOpen(true)}
                     type="button"
                     className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[9px] rounded transition border border-blue-200 cursor-pointer"
                   >
@@ -2300,14 +2329,14 @@ export default function DashboardView({
                 )}
               </div>
 
-              {/* Upcoming Google Events List */}
+              {/* Upcoming Outlook Events List */}
               <div className="space-y-2">
                 <span className="text-[9px] font-extrabold text-gray-400 tracking-wider uppercase block">Yaklaşan Etkinlikler</span>
                 
                 {dashboardCalendarLoading ? (
                   <div className="py-12 text-center text-xs text-gray-400 flex flex-col items-center justify-center gap-2">
                     <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
-                    <span>Google API üzerinden güncelleniyor...</span>
+                    <span>Outlook API üzerinden güncelleniyor...</span>
                   </div>
                 ) : dashboardCalendarError ? (
                   <div className="p-3 bg-red-50 text-red-700 rounded-lg text-[10px] font-semibold">
@@ -2320,7 +2349,7 @@ export default function DashboardView({
                 ) : (
                   <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                     {dashboardEvents.slice(0, 4).map((ge) => {
-                      const startT = ge.start?.dateTime || ge.start?.date || '';
+                      const startT = ge.start?.dateTime ? ge.start.dateTime + "Z" : '';
                       const isAlreadySynced = activities.some(act => act.id === `g-${ge.id}`);
                       
                       let formattedTime = 'Tüm Gün';
@@ -2332,16 +2361,16 @@ export default function DashboardView({
                       return (
                         <div key={ge.id} className="p-2 bg-gray-50/70 hover:bg-blue-50/20 border border-gray-100 rounded-lg flex items-start justify-between gap-2.5 transition">
                           <div className="space-y-1 min-w-0 flex-1">
-                            <h4 className="text-[11px] font-bold text-gray-800 truncate" title={ge.summary}>{ge.summary || 'Başlıksız Etkinlik'}</h4>
+                            <h4 className="text-[11px] font-bold text-gray-800 truncate" title={ge.subject}>{ge.subject || 'Başlıksız Etkinlik'}</h4>
                             <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-semibold flex-wrap">
                               <span className="flex items-center gap-0.5 text-blue-600 font-bold">
                                 <Clock className="w-3 h-3" />
                                 {formattedTime}
                               </span>
                               {ge.location && (
-                                <span className="flex items-center gap-0.5 text-gray-400 truncate max-w-[90px]" title={ge.location}>
+                                <span className="flex items-center gap-0.5 text-gray-400 truncate max-w-[90px]" title={ge.location?.displayName}>
                                   <MapPin className="w-3 h-3" />
-                                  {ge.location}
+                                  {ge.location?.displayName}
                                 </span>
                               )}
                             </div>
@@ -2540,38 +2569,38 @@ export default function DashboardView({
         </div>
       )}
 
-      {/* Google Calendar Sync Modal */}
-      {isGoogleCalendarModalOpen && (
+      {/* Outlook Calendar Sync Modal */}
+      {isOutlookCalendarModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-fade-in">
             <div className="flex justify-between items-center p-5 border-b border-gray-100 dark:border-gray-800">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Globe className="w-5 h-5 text-blue-600 animate-spin-slow" /> Google Calendar API Program Entegrasyonu
+                <Globe className="w-5 h-5 text-blue-600 animate-spin-slow" /> Outlook Calendar API Program Entegrasyonu
               </h2>
-              <button onClick={() => setIsGoogleCalendarModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition cursor-pointer text-sm font-bold">
+              <button onClick={() => setIsOutlookCalendarModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition cursor-pointer text-sm font-bold">
                 ✕
               </button>
             </div>
 
             <div className="p-5 space-y-4">
-              {/* Google Auth Status Section */}
+              {/* Outlook Auth Status Section */}
               <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-150 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-xs font-bold text-gray-700 dark:text-gray-300">Google API Bağlantı Durumu</h3>
+                  <h3 className="text-xs font-bold text-gray-700 dark:text-gray-300">Outlook API Bağlantı Durumu</h3>
                   {gUser ? (
                     <div className="flex items-center gap-1.5 mt-1 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
                       <CheckCircle2 className="w-4 h-4" />
                       <span>{gUser.email} adresi ile bağlandı</span>
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-500 mt-1">Google Takvimine bağlanarak etkinliklerinizi otomatik senkronize edin.</p>
+                    <p className="text-xs text-gray-500 mt-1">Outlook Takvimine bağlanarak etkinliklerinizi otomatik senkronize edin.</p>
                   )}
                 </div>
                 <div className="flex gap-2">
                   {gUser ? (
                     <button
                       onClick={async () => {
-                        await logoutGoogle();
+                        await logoutMicrosoft();
                         setGUser(null);
                         setGCalendars([]);
                         setGEvents([]);
@@ -2585,7 +2614,7 @@ export default function DashboardView({
                       onClick={handleLoadCalendars}
                       className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-3xs font-extrabold rounded-lg transition shadow-sm cursor-pointer"
                     >
-                      Google Hesabını Bağla
+                      Outlook Hesabını Bağla
                     </button>
                   )}
                 </div>
@@ -2623,7 +2652,7 @@ export default function DashboardView({
                   </div>
                   
                   <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-[11px]">
-                    Önizleme ekranı iframe kısıtlamalarına tabi olduğu için Google popup giriş penceresi engellenmiş olabilir. Bu engeli aşmak için aşağıdaki çözüm yöntemlerinden birini kullanabilirsiniz:
+                    Önizleme ekranı iframe kısıtlamalarına tabi olduğu için Outlook popup giriş penceresi engellenmiş olabilir. Bu engeli aşmak için aşağıdaki çözüm yöntemlerinden birini kullanabilirsiniz:
                   </p>
 
                   <div className="space-y-3.5 pt-1">
@@ -2644,7 +2673,7 @@ export default function DashboardView({
                     {/* Method 2 */}
                     <div className="space-y-1.5 pt-1.5 border-t border-blue-100 dark:border-blue-900">
                       <p className="font-bold text-gray-800 dark:text-gray-200">Yöntem 2: Manuel Access Token Girişi</p>
-                      <p className="text-gray-500 dark:text-gray-450 text-[10px]">Google OAuth Playground veya konsoldan edindiğiniz geçici Erişim Anahtarını (Access Token) doğrudan yapıştırın:</p>
+                      <p className="text-gray-500 dark:text-gray-450 text-[10px]">Outlook OAuth Playground veya konsoldan edindiğiniz geçici Erişim Anahtarını (Access Token) doğrudan yapıştırın:</p>
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -2706,7 +2735,7 @@ export default function DashboardView({
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-2">
-                      <label className="block text-3xs font-extrabold text-gray-400 uppercase mb-1">Eşitlenecek Google Takvimi</label>
+                      <label className="block text-3xs font-extrabold text-gray-400 uppercase mb-1">Eşitlenecek Outlook Takvimi</label>
                       <select
                         value={selectedCalendarId}
                         onChange={(e) => setSelectedCalendarId(e.target.value)}
@@ -2725,7 +2754,7 @@ export default function DashboardView({
                     </div>
                     <div className="flex items-end">
                       <button
-                        onClick={handleFetchGoogleEvents}
+                        onClick={handleFetchOutlookEvents}
                         disabled={gIsLoading}
                         className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-bold text-xs rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
@@ -2739,7 +2768,7 @@ export default function DashboardView({
                   {gEvents.length > 0 && (
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-3xs font-extrabold text-gray-400 uppercase">Bulunan Google Etkinlikleri (Son 30 Gün)</h4>
+                        <h4 className="text-3xs font-extrabold text-gray-400 uppercase">Bulunan Outlook Etkinlikleri (Son 30 Gün)</h4>
                         <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">
                           {gEvents.length} Etkinlik
                         </span>
@@ -2747,13 +2776,13 @@ export default function DashboardView({
                       
                       <div className="max-h-48 overflow-y-auto border border-gray-150 rounded-lg divide-y divide-gray-100 bg-gray-50/50 p-2 space-y-1">
                         {gEvents.map((ge) => {
-                          const startT = ge.start?.dateTime || ge.start?.date || '';
+                          const startT = ge.start?.dateTime ? ge.start.dateTime + "Z" : '';
                           const timeStr = startT ? new Date(startT).toLocaleString('tr-TR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Tüm Gün';
                           return (
                             <div key={ge.id} className="p-2 flex items-center justify-between text-3xs hover:bg-white rounded transition">
                               <div>
-                                <p className="font-bold text-gray-800">{ge.summary || 'Başlıksız Etkinlik'}</p>
-                                <p className="text-gray-400 mt-0.5 font-semibold">{timeStr} • {ge.location || 'Konum Belirtilmemiş'}</p>
+                                <p className="font-bold text-gray-800">{ge.subject || 'Başlıksız Etkinlik'}</p>
+                                <p className="text-gray-400 mt-0.5 font-semibold">{timeStr} • {ge.location?.displayName || 'Konum Belirtilmemiş'}</p>
                               </div>
                             </div>
                           );

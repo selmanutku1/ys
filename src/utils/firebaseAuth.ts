@@ -2,48 +2,47 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-
-import { initializeApp, getApps, initializeApp as initApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, signInWithPopup, OAuthProvider, signOut, User } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App if not already initialized
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 export const auth = getAuth(app);
 
-// Setup Google Provider with Calendar Scopes
-const provider = new GoogleAuthProvider();
-provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
-provider.addScope('https://www.googleapis.com/auth/calendar.events.readonly');
+// Setup Microsoft Provider with Calendar Scopes
+const provider = new OAuthProvider('microsoft.com');
+provider.addScope('Calendars.Read');
+provider.addScope('Calendars.ReadWrite');
 
 // Cache token in memory
 let cachedAccessToken: string | null = null;
 
-export const signInWithGoogle = async (): Promise<{ user: User; accessToken: string } | null> => {
+export const signInWithMicrosoft = async (): Promise<{ user: User; accessToken: string } | null> => {
   try {
     const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const credential = OAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
-      throw new Error('Google Auth response did not contain an access token.');
+      throw new Error('Microsoft Auth response did not contain an access token.');
     }
     cachedAccessToken = credential.accessToken;
     return { user: result.user, accessToken: credential.accessToken };
   } catch (error) {
-    console.error('Error signing in with Google:', error);
+    console.error('Error signing in with Microsoft:', error);
     throw error;
   }
 };
 
 export const getCachedToken = (): string | null => {
-  return cachedAccessToken || localStorage.getItem('kys_google_manual_token');
+  return cachedAccessToken || localStorage.getItem('kys_microsoft_manual_token');
 };
 
 export const saveManualToken = (token: string): void => {
-  localStorage.setItem('kys_google_manual_token', token);
+  localStorage.setItem('kys_microsoft_manual_token', token);
 };
 
-export const logoutGoogle = async (): Promise<void> => {
+export const logoutMicrosoft = async (): Promise<void> => {
   await signOut(auth);
   cachedAccessToken = null;
-  localStorage.removeItem('kys_google_manual_token');
+  localStorage.removeItem('kys_microsoft_manual_token');
 };

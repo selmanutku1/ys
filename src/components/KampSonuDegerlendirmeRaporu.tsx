@@ -32,7 +32,7 @@ export default function KampSonuDegerlendirmeRaporu({
     if (onSave) {
       onSave(response);
     }
-    setSubmitted(true);
+    setSendStep(true);
   };
 
   const handleRadioChange = (questionId: string, value: string) => {
@@ -49,12 +49,114 @@ export default function KampSonuDegerlendirmeRaporu({
     }));
   };
 
-  if (submitted) {
+  const [sendStep, setSendStep] = useState(false);
+  const [targetGroup, setTargetGroup] = useState('');
+  const [sendChannel, setSendChannel] = useState('email');
+  const [finalSuccess, setFinalSuccess] = useState(false);
+
+  if (finalSuccess) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl shadow-sm border border-emerald-100 animate-in fade-in">
-        <CheckCircle className="w-16 h-16 text-emerald-500 mb-4" />
-        <h2 className="text-2xl font-black text-gray-900">Teşekkürler!</h2>
-        <p className="text-gray-600 mt-2">Değerlendirmeniz başarıyla kaydedildi.</p>
+      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl shadow-sm border border-emerald-100 animate-in fade-in text-center">
+        <CheckCircle className="w-16 h-16 text-emerald-500 mb-4 mx-auto" />
+        <h2 className="text-2xl font-black text-gray-900">Değerlendirme Anketi Gönderildi!</h2>
+        <p className="text-gray-600 mt-2">
+          Anket formu <strong>{targetGroup}</strong> kamp grubuna <strong>{sendChannel === 'email' ? 'E-posta' : sendChannel === 'sms' ? 'SMS' : 'E-posta ve SMS'}</strong> aracılığıyla başarıyla iletildi.
+        </p>
+      </div>
+    );
+  }
+
+  if (sendStep) {
+    return (
+      <div className="flex flex-col p-8 bg-white rounded-2xl shadow-sm border border-emerald-100 animate-in fade-in">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-3 bg-indigo-100 text-indigo-700 rounded-xl">
+            <Send className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-gray-900">Anketi Katılımcılara Gönder</h2>
+            <p className="text-sm text-gray-500 font-medium">Değerlendirme anketini hangi kitleye ileteceğinizi seçin.</p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Kamp Grubu / Kafile</label>
+            <select
+              value={targetGroup}
+              onChange={(e) => setTargetGroup(e.target.value)}
+              className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+              <option value="">Grup Seçin...</option>
+              <option value="Tüm Katılımcılar">Tüm Katılımcılar</option>
+              <option value="Yeşil Hilal Grubu">Yeşil Hilal Grubu</option>
+              <option value="Zümrüd-ü Anka Grubu">Zümrüd-ü Anka Grubu</option>
+              <option value="Hilal-i Ahmer Kahramanları">Hilal-i Ahmer Kahramanları</option>
+              <option value="İstanbul Pendik Genç Yeşilay Kafilesi">İstanbul Pendik Genç Yeşilay Kafilesi</option>
+              <option value="Ankara Gençlik Grubu">Ankara Gençlik Grubu</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Gönderim Yöntemi</label>
+            <div className="flex flex-col md:flex-row gap-4">
+              <label className="flex items-center gap-2 p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors flex-1">
+                <input
+                  type="radio"
+                  name="channel"
+                  value="email"
+                  checked={sendChannel === 'email'}
+                  onChange={(e) => setSendChannel(e.target.value)}
+                  className="text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                />
+                <span className="font-bold text-gray-700 text-sm">E-posta</span>
+              </label>
+              <label className="flex items-center gap-2 p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors flex-1">
+                <input
+                  type="radio"
+                  name="channel"
+                  value="sms"
+                  checked={sendChannel === 'sms'}
+                  onChange={(e) => setSendChannel(e.target.value)}
+                  className="text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                />
+                <span className="font-bold text-gray-700 text-sm">SMS</span>
+              </label>
+              <label className="flex items-center gap-2 p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors flex-1">
+                <input
+                  type="radio"
+                  name="channel"
+                  value="both"
+                  checked={sendChannel === 'both'}
+                  onChange={(e) => setSendChannel(e.target.value)}
+                  className="text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                />
+                <span className="font-bold text-gray-700 text-sm">E-posta ve SMS</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
+            <button
+              onClick={() => setSendStep(false)}
+              className="px-6 py-3 font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition"
+            >
+              Geri
+            </button>
+            <button
+              onClick={() => {
+                if (!targetGroup) {
+                  alert("Lütfen bir kamp grubu seçin.");
+                  return;
+                }
+                setFinalSuccess(true);
+              }}
+              className="px-6 py-3 font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition flex items-center gap-2"
+            >
+              <Send className="w-4 h-4" /> Onayla ve Gönder
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

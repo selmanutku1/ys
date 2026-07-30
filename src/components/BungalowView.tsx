@@ -7,6 +7,7 @@ import React, { useState, useRef } from "react";
 import { Bungalow, Participant, CampPeriod } from "../types";
 import { 
   Home,
+  Building,
   UserMinus,
   UserPlus,
   Sparkles,
@@ -23,7 +24,9 @@ import {
   Printer,
   FileText,
   Search,
-  Lock, AlertTriangle } from "lucide-react";
+  Lock, AlertTriangle,
+  Settings
+} from "lucide-react";
 import { INITIAL_BUNGALOWS, INITIAL_GROUPS } from "../data";
 
 interface BungalowViewProps {
@@ -81,6 +84,10 @@ export default function BungalowView({
   onAddLog,
   onNavigateToParticipant,
 }: BungalowViewProps) {
+  const [layoutMode, setLayoutMode] = useState<"Bungalov" | "Apartman" | "Otel">("Bungalov");
+  const [apartmentsPerBuilding, setApartmentsPerBuilding] = useState<number>(6);
+  const unitTerm = layoutMode === "Bungalov" ? "Bungalov" : layoutMode === "Apartman" ? "Apartman/Lojman" : "Otel";
+  const unitTermShort = layoutMode === "Bungalov" ? "Bungalov" : layoutMode === "Apartman" ? "Daire" : "Oda";
   const [selectedBungalowId, setSelectedBungalowId] = useState<string | null>(
     null,
   );
@@ -123,6 +130,7 @@ export default function BungalowView({
 
   // Bungalow Deletion Mode states
   const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [isEditApartmentPlanMode, setIsEditApartmentPlanMode] = useState(false);
   const [selectedBungalowIds, setSelectedBungalowIds] = useState<string[]>([]);
 
   // Bed movement / swapping state inside selected bungalow
@@ -239,7 +247,7 @@ export default function BungalowView({
         <div class="border border-gray-300 rounded-lg p-5 bg-white space-y-3 print-bungalow-card mb-6 break-inside-avoid relative">
           <div class="flex justify-between items-center border-b border-gray-200 pb-2">
             <div>
-              <h3 class="text-sm font-black text-gray-900 uppercase tracking-tight">${bg.name}</h3>
+              <h3 class="text-sm font-black text-gray-900 uppercase tracking-tight">${layoutMode === "Bungalov" ? bg.name : `${getDisplayName(bg)} (${bg.name})`}</h3>
               <div class="flex items-center gap-2 text-[10px] text-gray-500 font-semibold">
                 <span>${bg.type} Blok</span>
                 <span>•</span>
@@ -1045,16 +1053,16 @@ export default function BungalowView({
       if (bg.campCenterId !== selectedCenterId || bg.type !== 'Standart') return bg;
       
       const newCapacity = targetCapacity;
-      const newClosedBeds = targetCapacity === 4 ? [5, 6] : [];
+      const newClosedBeds = [];
 
-      if (bg.capacity !== newCapacity || bg.closedBeds?.toString() !== newClosedBeds.toString()) {
+      if (bg.capacity !== newCapacity) {
         
-        // Find participants to eject if we are closing beds
-        const occupantsToEject = updatedParticipants.filter(p => p.bungalowId === bg.id && p.bedNumber && newClosedBeds.includes(p.bedNumber));
+        // Find participants to eject if we are decreasing capacity
+        const occupantsToEject = updatedParticipants.filter(p => p.bungalowId === bg.id && p.bedNumber && p.bedNumber > newCapacity);
         if (occupantsToEject.length > 0) {
           ejectedParticipantCount += occupantsToEject.length;
           updatedParticipants = updatedParticipants.map(p => {
-            if (p.bungalowId === bg.id && p.bedNumber && newClosedBeds.includes(p.bedNumber)) {
+            if (p.bungalowId === bg.id && p.bedNumber && p.bedNumber > newCapacity) {
               return { ...p, bungalowId: null, bedNumber: null };
             }
             return p;
@@ -1255,16 +1263,249 @@ export default function BungalowView({
   }, 0);
   const emptyBedsCount = totalCapacity - centerOccupantsCount;
 
+
+  
+  const getApartmentType = (capacity: number) => {
+    if (capacity <= 4) return "1+1";
+    if (capacity === 5 || capacity === 6) return "2+1";
+    if (capacity === 7 || capacity === 8) return "3+1";
+    if (capacity === 9) return "4+1";
+    if (capacity >= 10) return "Dubleks";
+    return "";
+  };
+
+  const getDisplayName = (bg: Bungalow) => {
+    if (layoutMode === "Bungalov") return bg.id;
+    const index = filteredBungalows.findIndex(b => b.id === bg.id);
+    if (index === -1) return bg.id;
+    if (layoutMode === "Otel") return `Oda ${100 + index + 1}`;
+    if (layoutMode === "Apartman") return `Daire ${(index % apartmentsPerBuilding) + 1} (${getApartmentType(bg.capacity)})`;
+    return bg.id;
+  };
+
+  const renderRoom = (bg: Bungalow) => {
+
+              const occupants = getOccupants(bg.id);
+              const filledCount = occupants.length;
+              const risks = analyzeBungalowRisks(occupants);
+              const hasRisks = risks.length > 0;
+              const isFull = filledCount === bg.capacity;
+              const hasMatchedOccupant = occupants.some((o) => isParticipantMatched(o));
+
+              // Determine gender color indicator of the room
+              let roomGenderTheme = "border-gray-200 bg-white";
+              if (bg.isClosed) {
+                roomGenderTheme = "border-gray-400 bg-gray-200 opacity-60 text-gray-500 shadow-inner";
+              } else if (isFull) {
+                roomGenderTheme =
+                  "border-red-600 bg-red-500 text-white shadow-sm";
+              } else if (filledCount > 0) {
+                const firstUser = occupants[0];
+                roomGenderTheme =
+                  firstUser.gender === "Kadın"
+                    ? "border-pink-200 bg-pink-50/20"
+                    : "border-blue-200 bg-blue-50/20";
+              }
+
+              return (
+                <div
+                   key={bg.id}
+                   onClick={() => {
+                     if (isDeleteMode) {
+                       if (selectedBungalowIds.includes(bg.id)) {
+                         setSelectedBungalowIds(selectedBungalowIds.filter((id) => id !== bg.id));
+                       } else {
+                         setSelectedBungalowIds([...selectedBungalowIds, bg.id]);
+                       }
+                     } else {
+                       const now = Date.now();
+                       const lastClick = lastBungalowClickRef.current;
+                       
+                       if (lastClick && lastClick.id === bg.id) {
+                         const diff = now - lastClick.time;
+                         if (diff < 80) {
+                           // Ignore ghost/duplicate click event from touch translation
+                           return;
+                         }
+                         if (diff < 350) {
+                           // Real double click detected!
+                           if (clickTimeoutRef.current) {
+                             window.clearTimeout(clickTimeoutRef.current);
+                             clickTimeoutRef.current = null;
+                           }
+                           setSelectedBungalowId(bg.id);
+                           setAssignTarget(null);
+                           setPreviewBungalowId(null);
+                           lastBungalowClickRef.current = null;
+                           return;
+                         }
+                       }
+                       
+                       // Single click candidate
+                       lastBungalowClickRef.current = { id: bg.id, time: now };
+                       if (clickTimeoutRef.current) {
+                         window.clearTimeout(clickTimeoutRef.current);
+                       }
+                       clickTimeoutRef.current = window.setTimeout(() => {
+                         clickTimeoutRef.current = null;
+                         setPreviewBungalowId(bg.id);
+                       }, 250);
+                     }
+                   }}
+                   onDoubleClick={() => {
+                     if (!isDeleteMode) {
+                       if (clickTimeoutRef.current) {
+                         window.clearTimeout(clickTimeoutRef.current);
+                         clickTimeoutRef.current = null;
+                       }
+                       setSelectedBungalowId(bg.id);
+                       setAssignTarget(null);
+                       setPreviewBungalowId(null);
+                     }
+                   }}
+                   title={isDeleteMode ? "Seçmek için tıklayın" : "Sakinleri görmek için tıklayın, Yatak düzeni için çift tıklayın"}
+                   className={`p-1.5 rounded-[4px] border cursor-pointer transition-all hover:scale-[1.02] relative ${roomGenderTheme} ${
+                     isDeleteMode
+                       ? selectedBungalowIds.includes(bg.id)
+                         ? "ring-2 ring-red-500 shadow-md bg-red-50/10 border-red-500"
+                         : "opacity-75 hover:opacity-100"
+                       : hasMatchedOccupant
+                         ? "ring-2 ring-green-500 border-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)] animate-pulse"
+                         : selectedBungalowId === bg.id
+                           ? "ring-2 ring-emerald-500 shadow-md"
+                           : ""
+                   }`}
+                 >
+                   <div className="flex justify-between items-center mb-1">
+                     <div className="flex items-center gap-1 min-w-0">
+                       {isDeleteMode && (
+                         <div className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border transition ${
+                           selectedBungalowIds.includes(bg.id)
+                             ? "bg-red-600 border-red-600 text-white"
+                             : "border-gray-350 bg-white"
+                         }`}>
+                           {selectedBungalowIds.includes(bg.id) && (
+                             <Check className="w-2.5 h-2.5 stroke-[4px]" />
+                           )}
+                         </div>
+                       )}
+                       <span
+                         className={`font-bold text-[8px] ${bg.isClosed ? "text-gray-500" : isFull && !hasMatchedOccupant ? "text-white" : "text-gray-800"} leading-none truncate`}
+                       >
+                         {getDisplayName(bg)}
+                       </span>
+                       {hasRisks && <AlertTriangle className="w-2.5 h-2.5 text-amber-500 ml-0.5 shrink-0" />}
+                     </div>
+                     <span
+                       className={`text-[7px] font-bold ${isFull && !hasMatchedOccupant ? "text-red-100" : "text-gray-500"} font-mono shrink-0`}
+                     >
+                       {bg.isClosed ? "KAPALI" : `${filledCount}/${bg.capacity}`}
+                     </span>
+                   </div>
+                   {isEditApartmentPlanMode && layoutMode === "Apartman" ? (
+                     <div className="mt-2 mb-1" onClick={e => e.stopPropagation()}>
+                       <select
+                         value={bg.capacity}
+                         onChange={(e) => {
+                           const newCapacity = parseInt(e.target.value);
+                           if (filledCount > newCapacity) {
+                             alert("Kapasiteyi düşürebilmek için önce odadaki bazı katılımcıları boşaltmanız gerekmektedir.");
+                             return;
+                           }
+                           onUpdateBungalows(bungalows.map(b => b.id === bg.id ? { ...b, capacity: newCapacity } : b));
+                         }}
+                         className="w-full bg-indigo-50 border border-indigo-200 text-indigo-800 text-[9px] font-bold py-1 px-1 rounded focus:outline-none cursor-pointer"
+                       >
+                         <option value="4">1+1 (4 yatak)</option>
+                         <option value="5">2+1 (5 yatak)</option>
+                         <option value="7">3+1 (7 yatak)</option>
+                         <option value="9">4+1 (9 yatak)</option>
+                         <option value="10">Dubleks (10 yatak)</option>
+                       </select>
+                     </div>
+                   ) : (
+                    <>
+                    {/* Bed visual bubbles */}
+                   <div className="grid grid-cols-3 gap-0.5 mt-1">
+                     {bg.isClosed ? <div className="col-span-3 text-[7px] font-bold text-center text-gray-400 py-1">KULLANIM DIŞI</div> : Array.from({ length: bg.capacity }).map((_, idx) => {
+                       const bedNum = idx + 1;
+                       const occupier = occupants.find(
+                         (o) => o.bedNumber === bedNum,
+                       );
+                       const isMatched = occupier ? isParticipantMatched(occupier) : false;
+                       return (
+                         <div
+                           key={bedNum}
+                           className={`aspect-square rounded-[2px] flex items-center justify-center text-[6px] font-bold ${
+                             isMatched
+                               ? "bg-green-500 text-white shadow-[0_0_8px_#22c55e] border border-green-600 font-black animate-pulse"
+                               : occupier
+                                 ? isFull
+                                   ? "bg-red-700 text-red-100 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]"
+                                   : occupier.gender === "Kadın"
+                                     ? "bg-pink-500 text-white"
+                                     : "bg-blue-500 text-white"
+                                 : isFull
+                                   ? "bg-red-400 text-red-200 border border-dashed border-red-300"
+                                   : "bg-gray-100 text-gray-300 border border-dashed border-gray-200"
+                           }`}
+                           title={
+                             occupier
+                               ? `${bedNum}. Yatak: ${occupier.name}${isMatched ? " (Aranan Katılımcı)" : ""}`
+                               : `${bedNum}. Yatak Boş`
+                           }
+                         >
+                           {bedNum}
+                         </div>
+                       );
+                    })}
+                  </div>
+                   </>
+                   )}
+                </div>
+              );
+            
+  };
   return (
     <div className="space-y-6" id="bungalow-management-root">
       {/* Header and Smart Button */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
         <div className="space-y-1.5">
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 font-sans">
-            <Home className="w-5 h-5 text-emerald-600" />
-            Bungalov Konaklama Kontrolü
+            {layoutMode === "Otel" || layoutMode === "Apartman" ? <Building className="w-5 h-5 text-emerald-600" /> : <Home className="w-5 h-5 text-emerald-600" />}
+            {unitTerm} Konaklama Kontrolü
           </h2>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-gray-500 mt-0.5">
+            <div className="flex items-center gap-1.5 border border-gray-200 rounded-md px-1.5 py-0.5 bg-gray-50">
+              <span className="text-[10px] uppercase font-bold text-gray-400">Düzen:</span>
+              <select 
+                value={layoutMode} 
+                onChange={(e) => setLayoutMode(e.target.value as any)}
+                className="bg-transparent text-gray-700 font-bold text-xs focus:outline-none cursor-pointer"
+              >
+                <option value="Bungalov">Bungalov</option>
+                <option value="Apartman">Apartman (Lojman)</option>
+                <option value="Otel">Otel (Oda)</option>
+              </select>
+            </div>
+            {layoutMode === "Apartman" && (
+            <div className="flex items-center gap-1.5 border border-gray-200 rounded-md px-1.5 py-0.5 bg-gray-50">
+              <span className="text-[10px] uppercase font-bold text-gray-400">Daire/Bina:</span>
+              <select 
+                value={apartmentsPerBuilding} 
+                onChange={(e) => setApartmentsPerBuilding(parseInt(e.target.value))}
+                className="bg-transparent text-gray-700 font-bold text-xs focus:outline-none cursor-pointer"
+              >
+                <option value="2">2 Daire</option>
+                <option value="4">4 Daire</option>
+                <option value="6">6 Daire</option>
+                <option value="8">8 Daire</option>
+                <option value="10">10 Daire</option>
+                <option value="12">12 Daire</option>
+              </select>
+            </div>
+            )}
+            <span className="text-gray-300 hidden xs:inline">•</span>
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
               Kapasite: <span className="text-gray-900 font-extrabold">{totalCapacity}</span>
@@ -1282,7 +1523,8 @@ export default function BungalowView({
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 self-stretch sm:self-auto shrink-0">
+        <div className="flex flex-wrap items-center gap-2 self-stretch xl:self-auto shrink-0 w-full xl:w-auto">
+          {layoutMode === "Bungalov" && (
           <div className="flex bg-gray-50 border border-gray-200 rounded-lg p-1 mr-1">
             <button
               onClick={() => handleBulkCapacityChange(4)}
@@ -1299,6 +1541,40 @@ export default function BungalowView({
               6'lı Düzen
             </button>
           </div>
+          )}
+          {layoutMode === "Apartman" && (
+          <div className="flex flex-wrap items-center bg-gray-50 border border-gray-200 rounded-lg p-1 mr-1 gap-1">
+            <button
+              onClick={() => setIsEditApartmentPlanMode(!isEditApartmentPlanMode)}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1 border ${isEditApartmentPlanMode ? 'bg-indigo-100 text-indigo-700 border-indigo-200 shadow-inner' : 'bg-white text-gray-700 border-gray-200 shadow-sm hover:bg-gray-50'}`}
+              title="Her bir dairenin tipini tek tek planlamak için düzenleme modunu açar"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              {isEditApartmentPlanMode ? "Planlamayı Bitir" : "Daire Planla"}
+            </button>
+            {!isEditApartmentPlanMode && (
+              <div className="flex items-center gap-1 border-l border-gray-300 pl-1 ml-1">
+                <select 
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleBulkCapacityChange(parseInt(e.target.value));
+                      e.target.value = "";
+                    }
+                  }}
+                  className="bg-white border border-gray-200 text-gray-700 font-bold text-xs focus:outline-none cursor-pointer rounded px-2 py-1.5 shadow-sm"
+                  title="Tüm daireleri tek bir düzene çevirir"
+                >
+                  <option value="">Toplu Düzen Seç...</option>
+                  <option value="4">Tümü 1+1 (4)</option>
+                  <option value="5">Tümü 2+1 (5)</option>
+                  <option value="7">Tümü 3+1 (7)</option>
+                  <option value="9">Tümü 4+1 (9)</option>
+                  <option value="10">Tümü Dubleks (10)</option>
+                </select>
+              </div>
+            )}
+          </div>
+          )}
           {isDeleteMode ? (
             <>
               <button
@@ -1316,7 +1592,7 @@ export default function BungalowView({
                 }`}
               >
                 <Trash2 className="w-4 h-4" />
-                Seçilen Bungalovları Sil ({selectedBungalowIds.length})
+                Seçilenleri Sil ({selectedBungalowIds.length})
               </button>
 
               <button
@@ -1344,7 +1620,7 @@ export default function BungalowView({
                 <button
                   onClick={() => setShowAddForm(!showAddForm)}
                   className="bg-emerald-50 text-emerald-750 hover:bg-emerald-100 px-3 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer border-r border-emerald-200"
-                  title="Yeni Bungalov Ekle"
+                  title={`Yeni ${unitTermShort} Ekle`}
                 >
                   <Plus className="w-4 h-4" />
                   Ekle
@@ -1352,7 +1628,7 @@ export default function BungalowView({
                 <button
                   onClick={() => setIsDeleteMode(true)}
                   className="bg-emerald-50 text-emerald-750 hover:bg-emerald-100 hover:text-red-700 px-3 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                  title="Bungalov Sil"
+                  title={`${unitTermShort} Sil`}
                 >
                   <Trash2 className="w-4 h-4" />
                   Sil
@@ -1366,7 +1642,7 @@ export default function BungalowView({
                   setIsPrintModalOpen(true);
                 }}
                 className="bg-emerald-50 text-emerald-750 hover:bg-emerald-100 px-4 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer border border-emerald-200 shadow-3xs"
-                title="Bungalov Yerleşim Düzeni"
+                title="{unitTermShort} Yerleşim Düzeni"
               >
                 <Printer className="w-4 h-4" />
                 Yerleşim Düzeni
@@ -1438,11 +1714,11 @@ export default function BungalowView({
               <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                    <Home className="w-4 h-4" />
+                    {layoutMode === "Otel" || layoutMode === "Apartman" ? <Building className="w-4 h-4" /> : <Home className="w-4 h-4" />}
                   </div>
                   <div>
                     <h3 className="font-bold text-gray-900 text-sm leading-none">
-                      {bg.name} Sakinleri
+                      {layoutMode === "Bungalov" ? bg.name : `${getDisplayName(bg)} (${bg.name})`} Sakinleri
                     </h3>
                     <p className="text-3xs text-gray-500 mt-1 font-semibold">
                       Kapasite: {bg.capacity} Kişi | Konum: {bg.type} Blok
@@ -1758,7 +2034,7 @@ export default function BungalowView({
                   {/* Page Break Option */}
                   <div className="p-3 bg-white border border-gray-200 rounded-xl space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-gray-700">Her Bungalov Yeni Sayfada</span>
+                      <span className="text-[11px] font-bold text-gray-700">Her {unitTermShort} Yeni Sayfada</span>
                       <button
                         type="button"
                         onClick={() => setPrintPageBreak(!printPageBreak)}
@@ -2105,7 +2381,7 @@ export default function BungalowView({
           <div className="flex justify-between items-center border-b pb-2">
             <h3 className="font-bold text-sm text-emerald-900 flex items-center gap-1.5">
               <Plus className="w-4 h-4 text-emerald-600" />
-              Yeni Odalı Bungalov Tanımla (Kamp: {selectedCenterId})
+              Yeni {unitTerm} Tanımla (Kamp: {selectedCenterId})
             </h3>
             <button
               type="button"
@@ -2119,7 +2395,7 @@ export default function BungalowView({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-1">
               <label className="text-4xs text-gray-400 font-black uppercase block">
-                Bungalov / Oda Adı
+                {unitTermShort} Adı
               </label>
               <input
                 type="text"
@@ -2221,170 +2497,37 @@ export default function BungalowView({
             return null;
           })()}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-10 gap-1.5">
-            {filteredBungalows.map((bg) => {
-              const occupants = getOccupants(bg.id);
-              const filledCount = occupants.length;
-              const risks = analyzeBungalowRisks(occupants);
-              const hasRisks = risks.length > 0;
-              const isFull = filledCount === bg.capacity;
-              const hasMatchedOccupant = occupants.some((o) => isParticipantMatched(o));
-
-              // Determine gender color indicator of the room
-              let roomGenderTheme = "border-gray-200 bg-white";
-              if (bg.isClosed) {
-                roomGenderTheme = "border-gray-400 bg-gray-200 opacity-60 text-gray-500 shadow-inner";
-              } else if (isFull) {
-                roomGenderTheme =
-                  "border-red-600 bg-red-500 text-white shadow-sm";
-              } else if (filledCount > 0) {
-                const firstUser = occupants[0];
-                roomGenderTheme =
-                  firstUser.gender === "Kadın"
-                    ? "border-pink-200 bg-pink-50/20"
-                    : "border-blue-200 bg-blue-50/20";
-              }
-
-              return (
-                <div
-                   key={bg.id}
-                   onClick={() => {
-                     if (isDeleteMode) {
-                       if (selectedBungalowIds.includes(bg.id)) {
-                         setSelectedBungalowIds(selectedBungalowIds.filter((id) => id !== bg.id));
-                       } else {
-                         setSelectedBungalowIds([...selectedBungalowIds, bg.id]);
-                       }
-                     } else {
-                       const now = Date.now();
-                       const lastClick = lastBungalowClickRef.current;
-                       
-                       if (lastClick && lastClick.id === bg.id) {
-                         const diff = now - lastClick.time;
-                         if (diff < 80) {
-                           // Ignore ghost/duplicate click event from touch translation
-                           return;
-                         }
-                         if (diff < 350) {
-                           // Real double click detected!
-                           if (clickTimeoutRef.current) {
-                             window.clearTimeout(clickTimeoutRef.current);
-                             clickTimeoutRef.current = null;
-                           }
-                           setSelectedBungalowId(bg.id);
-                           setAssignTarget(null);
-                           setPreviewBungalowId(null);
-                           lastBungalowClickRef.current = null;
-                           return;
-                         }
-                       }
-                       
-                       // Single click candidate
-                       lastBungalowClickRef.current = { id: bg.id, time: now };
-                       if (clickTimeoutRef.current) {
-                         window.clearTimeout(clickTimeoutRef.current);
-                       }
-                       clickTimeoutRef.current = window.setTimeout(() => {
-                         clickTimeoutRef.current = null;
-                         setPreviewBungalowId(bg.id);
-                       }, 250);
-                     }
-                   }}
-                   onDoubleClick={() => {
-                     if (!isDeleteMode) {
-                       if (clickTimeoutRef.current) {
-                         window.clearTimeout(clickTimeoutRef.current);
-                         clickTimeoutRef.current = null;
-                       }
-                       setSelectedBungalowId(bg.id);
-                       setAssignTarget(null);
-                       setPreviewBungalowId(null);
-                     }
-                   }}
-                   title={isDeleteMode ? "Seçmek için tıklayın" : "Sakinleri görmek için tıklayın, Yatak düzeni için çift tıklayın"}
-                   className={`p-1.5 rounded-[4px] border cursor-pointer transition-all hover:scale-[1.02] relative ${roomGenderTheme} ${
-                     isDeleteMode
-                       ? selectedBungalowIds.includes(bg.id)
-                         ? "ring-2 ring-red-500 shadow-md bg-red-50/10 border-red-500"
-                         : "opacity-75 hover:opacity-100"
-                       : hasMatchedOccupant
-                         ? "ring-2 ring-green-500 border-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)] animate-pulse"
-                         : selectedBungalowId === bg.id
-                           ? "ring-2 ring-emerald-500 shadow-md"
-                           : ""
-                   }`}
-                 >
-                   <div className="flex justify-between items-center mb-1">
-                     <div className="flex items-center gap-1 min-w-0">
-                       {isDeleteMode && (
-                         <div className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border transition ${
-                           selectedBungalowIds.includes(bg.id)
-                             ? "bg-red-600 border-red-600 text-white"
-                             : "border-gray-350 bg-white"
-                         }`}>
-                           {selectedBungalowIds.includes(bg.id) && (
-                             <Check className="w-2.5 h-2.5 stroke-[4px]" />
-                           )}
-                         </div>
-                       )}
-                       <span
-                         className={`font-bold text-[8px] ${bg.isClosed ? "text-gray-500" : isFull && !hasMatchedOccupant ? "text-white" : "text-gray-800"} leading-none truncate`}
-                       >
-                         {bg.id}
-                       </span>
-                       {hasRisks && <AlertTriangle className="w-2.5 h-2.5 text-amber-500 ml-0.5 shrink-0" />}
-                     </div>
-                     <span
-                       className={`text-[7px] font-bold ${isFull && !hasMatchedOccupant ? "text-red-100" : "text-gray-500"} font-mono shrink-0`}
-                     >
-                       {bg.isClosed ? "KAPALI" : `${filledCount}/${bg.capacity}`}
-                     </span>
-                   </div>
- 
-                   {/* Bed visual bubbles */}
-                   <div className="grid grid-cols-3 gap-0.5 mt-1">
-                     {bg.isClosed ? <div className="col-span-3 text-[7px] font-bold text-center text-gray-400 py-1">KULLANIM DIŞI</div> : Array.from({ length: bg.capacity }).map((_, idx) => {
-                       const bedNum = idx + 1;
-                       const occupier = occupants.find(
-                         (o) => o.bedNumber === bedNum,
-                       );
-                       const isMatched = occupier ? isParticipantMatched(occupier) : false;
-                       return (
-                         <div
-                           key={bedNum}
-                           className={`aspect-square rounded-[2px] flex items-center justify-center text-[6px] font-bold ${
-                             isMatched
-                               ? "bg-green-500 text-white shadow-[0_0_8px_#22c55e] border border-green-600 font-black animate-pulse"
-                               : occupier
-                                 ? isFull
-                                   ? "bg-red-700 text-red-100 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]"
-                                   : occupier.gender === "Kadın"
-                                     ? "bg-pink-500 text-white"
-                                     : "bg-blue-500 text-white"
-                                 : isFull
-                                   ? "bg-red-400 text-red-200 border border-dashed border-red-300"
-                                   : "bg-gray-100 text-gray-300 border border-dashed border-gray-200"
-                           }`}
-                           title={
-                             occupier
-                               ? `${bedNum}. Yatak: ${occupier.name}${isMatched ? " (Aranan Katılımcı)" : ""}`
-                               : `${bedNum}. Yatak Boş`
-                           }
-                         >
-                           {bedNum}
-                         </div>
-                       );
-                    })}
+          
+          {layoutMode === "Bungalov" && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-10 gap-1.5">
+              {filteredBungalows.map(renderRoom)}
+            </div>
+          )}
+          {layoutMode === "Otel" && (
+            <div className="bg-gray-100 p-4 sm:p-8 rounded-xl border border-gray-200 shadow-inner relative overflow-hidden">
+              <div className="absolute inset-y-0 left-1/2 w-8 bg-gray-200/60 -ml-4 rounded shadow-inner hidden sm:block pointer-events-none border-x border-gray-300 border-dashed" />
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-x-12 sm:gap-x-16 gap-y-3 relative z-10">
+                {filteredBungalows.map(renderRoom)}
+              </div>
+            </div>
+          )}
+          {layoutMode === "Apartman" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {Array.from({ length: Math.ceil(filteredBungalows.length / apartmentsPerBuilding) }).map((_, i) => (
+                <div key={i} className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-md flex flex-col gap-3 relative pt-8">
+                  <div className="absolute top-0 inset-x-0 h-6 bg-gray-700 text-white text-3xs font-black uppercase flex items-center justify-center rounded-t-lg">
+                    Bina {i + 1}
                   </div>
+                  {filteredBungalows.slice(i * apartmentsPerBuilding, (i + 1) * apartmentsPerBuilding).map(renderRoom)}
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Color Guides and Policy (Placed under the grid for reference) */}
           <div className="mt-4 bg-white p-4 rounded-xl border border-gray-100 shadow-3xs text-3xs text-gray-500 space-y-2">
             <span className="font-bold text-gray-600 block uppercase tracking-wider text-2xs">
-              Bungalov Renk Kodları ve Kuralları
+              {unitTermShort} Renk Kodları ve Kuralları
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div className="flex items-center gap-1.5">
@@ -2401,7 +2544,7 @@ export default function BungalowView({
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded bg-red-600 inline-block"></span>
-                <span className="font-semibold text-gray-700">Bungalov Tamamen Dolu</span>
+                <span className="font-semibold text-gray-700">{unitTermShort} Tamamen Dolu</span>
               </div>
             </div>
             <p className="text-[10px] text-emerald-800 font-medium bg-emerald-50/50 p-2 rounded border border-emerald-100 flex items-start gap-1.5 mt-2">
@@ -2421,7 +2564,7 @@ export default function BungalowView({
               <div className="border-b pb-3 border-gray-150 flex justify-between items-start">
                 <div>
                   <span className="text-xs font-bold text-gray-400 prose">
-                    Seçili Bungalov
+                    Seçili {unitTermShort}
                   </span>
                   <h3 className="text-base font-bold text-gray-900 mt-0.5">
                     {selectedBungalow.name}
@@ -2726,9 +2869,9 @@ export default function BungalowView({
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center p-8 text-center text-gray-400">
-              <Home className="w-12 h-12 text-gray-200 stroke-1 mb-2" />
+              {layoutMode === "Otel" || layoutMode === "Apartman" ? <Building className="w-12 h-12 text-gray-200 stroke-1 mb-2" /> : <Home className="w-12 h-12 text-gray-200 stroke-1 mb-2" />}
               <p className="text-xs font-semibold">
-                Detayları İncelemek İçin Bir Bungalov Seçin
+                Detayları İncelemek İçin Bir {unitTermShort} Seçin
               </p>
               <p className="text-3xs mt-1">
                 Soldaki bento bungalov gridinden merak ettiğiniz bir odayı
@@ -2896,7 +3039,7 @@ export default function BungalowView({
                   </div>
                   <div>
                     <h3 className="font-bold text-gray-900 text-sm md:text-base leading-none">
-                      {bg.name} - Yerleşim Düzenleme Paneli
+                      {layoutMode === "Bungalov" ? bg.name : `${getDisplayName(bg)} (${bg.name})`} - Yerleşim Düzenleme Paneli
                     </h3>
                     <p className="text-3xs md:text-2xs text-gray-500 mt-1 font-semibold">
                       Kapasite: {bg.capacity} Kişi | Konum: {bg.type} Blok | {filledCount} / {bg.capacity} Dolu
@@ -2963,6 +3106,47 @@ export default function BungalowView({
 
                   {/* Capacity & Bungalow Deletion Controls inside the Edit panel */}
                   <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-gray-50 border border-gray-150 rounded-xl shadow-3xs">
+                    {layoutMode === "Apartman" && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-3xs font-extrabold text-gray-500 uppercase tracking-wider">
+                          Daire Tipi:
+                        </span>
+                        <select
+                          value={bg.capacity}
+                          onChange={(e) => {
+                            const newCapacity = parseInt(e.target.value);
+                            const occupantsToEject = occupants.filter(o => o.bedNumber && o.bedNumber > newCapacity);
+                            if (occupantsToEject.length > 0) {
+                              setConfirmDialog({
+                                isOpen: true,
+                                title: "Kapasite Azaltma Onayı",
+                                message: `Daire tipini küçülttüğünüz için bazı katılımcıların yerleşimi iptal edilecektir. Onaylıyor musunuz?`,
+                                confirmText: "Kapasiteyi Düşür",
+                                isDanger: true,
+                                onConfirm: () => {
+                                  const updatedParts = participants.map(p =>
+                                     p.bungalowId === bg.id && p.bedNumber && p.bedNumber > newCapacity
+                                       ? { ...p, bungalowId: null, bedNumber: null }
+                                       : p
+                                  );
+                                  onUpdateParticipants(updatedParts);
+                                  onUpdateBungalows(bungalows.map(b => b.id === bg.id ? { ...b, capacity: newCapacity } : b));
+                                }
+                              });
+                            } else {
+                              onUpdateBungalows(bungalows.map(b => b.id === bg.id ? { ...b, capacity: newCapacity } : b));
+                            }
+                          }}
+                          className="bg-white border border-gray-200 rounded-md text-xs font-bold text-gray-700 px-2 py-1 focus:outline-none"
+                        >
+                          <option value="4">1+1 (4 Yatak)</option>
+                          <option value="5">2+1 (5 Yatak)</option>
+                          <option value="7">3+1 (7 Yatak)</option>
+                          <option value="9">4+1 (9 Yatak)</option>
+                          <option value="10">Dubleks (10 Yatak)</option>
+                        </select>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <span className="text-3xs font-extrabold text-gray-500 uppercase tracking-wider">
                         Kapasiteyi Düzenle:
@@ -3036,7 +3220,7 @@ export default function BungalowView({
                             : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
                         }`}
                       >
-                        {bg.isClosed ? "Bungalov'u Kullanıma Aç" : "Bungalov'u Kapat"}
+                        {bg.isClosed ? `${unitTermShort}'yu Kullanıma Aç` : `${unitTermShort}'yu Kapat`}
                       </button>
                     </div>
 
@@ -3497,7 +3681,7 @@ export default function BungalowView({
                 <div className="flex justify-between items-start">
                   <div>
                     <span className="text-3xs font-extrabold text-red-500 uppercase tracking-wider block">
-                      Hedef Bungalov
+                      Hedef {unitTermShort}
                     </span>
                     <span className="font-bold text-gray-800 text-sm">
                       {conflictInfo.bungalowName}

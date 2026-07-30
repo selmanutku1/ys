@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CampPeriod, CampCenter, SystemLog, Participant, Staff } from '../types';
-import { ExternalLink, Search, Sparkles, Calendar, Users, Edit2, Plus, Check, Share2, AlertTriangle, ShieldCheck, FileText, ChevronRight, CheckCircle2, ChevronDown, Trash2 } from 'lucide-react';
+import { ExternalLink, Search, Sparkles, Calendar, Users, Edit2, Plus, Check, Share2, AlertTriangle, ShieldCheck, FileText, ChevronRight, CheckCircle2, ChevronDown, Trash2, X } from 'lucide-react';
 
 interface PeriodManagementViewProps {
   periods: CampPeriod[];
@@ -35,7 +35,8 @@ export default function PeriodManagementView({
   const [newPeriodGender, setNewPeriodGender] = useState<'Kadın' | 'Erkek' | 'Karışık/Aile'>('Karışık/Aile');
   const [newPeriodMinAge, setNewPeriodMinAge] = useState(11);
   const [newPeriodMaxAge, setNewPeriodMaxAge] = useState(14);
-  const [newPeriodLeaderId, setNewPeriodLeaderId] = useState('');
+  const [newPeriodLeaderIds, setNewPeriodLeaderIds] = useState<string[]>([]);
+  const [newPeriodAssignedStaffIds, setNewPeriodAssignedStaffIds] = useState<string[]>([]);
   const [newPeriodCriteria, setNewPeriodCriteria] = useState('');
 
   const [editingPeriod, setEditingPeriod] = useState<CampPeriod | null>(null);
@@ -65,7 +66,8 @@ export default function PeriodManagementView({
       gender: newPeriodGender,
       minAge: newPeriodMinAge,
       maxAge: newPeriodMaxAge,
-      leaderId: newPeriodLeaderId,
+      leaderIds: newPeriodLeaderIds,
+      assignedStaffIds: newPeriodAssignedStaffIds,
       criteria: newPeriodCriteria,
       isActive: false,
       status: 'Planlandı',
@@ -280,17 +282,67 @@ export default function PeriodManagementView({
               </div>
               
               <div>
-                <label className="block text-gray-400 mb-0.5 font-bold uppercase">Kamp Lideri</label>
+                <label className="block text-gray-400 mb-0.5 font-bold uppercase">Görevli Personel</label>
                 <select
-                  value={newPeriodLeaderId}
-                  onChange={(e) => setNewPeriodLeaderId(e.target.value)}
-                  className="w-full p-1.5 border border-gray-200 bg-white rounded-lg"
+                  value=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && !newPeriodAssignedStaffIds.includes(val)) {
+                      setNewPeriodAssignedStaffIds([...newPeriodAssignedStaffIds, val]);
+                    }
+                  }}
+                  className="w-full p-2 border border-gray-200 bg-white rounded-lg text-sm"
                 >
-                  <option value="">Lider Seçin</option>
+                  <option value="">Personel Ekle...</option>
                   {(staff || []).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id} disabled={newPeriodAssignedStaffIds.includes(s.id)}>{s.name} - {s.role}</option>
                   ))}
                 </select>
+                {newPeriodAssignedStaffIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {newPeriodAssignedStaffIds.map(id => {
+                      const person = staff?.find(s => s.id === id);
+                      return person ? (
+                        <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">
+                          {person.name}
+                          <button type="button" onClick={() => setNewPeriodAssignedStaffIds(prev => prev.filter(p => p !== id))} className="text-blue-500 hover:text-blue-800"><X className="w-3 h-3" /></button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-0.5 font-bold uppercase">Kamp Liderleri</label>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && !newPeriodLeaderIds.includes(val)) {
+                      setNewPeriodLeaderIds([...newPeriodLeaderIds, val]);
+                    }
+                  }}
+                  className="w-full p-2 border border-gray-200 bg-white rounded-lg text-sm"
+                >
+                  <option value="">Lider Ekle...</option>
+                  {(staff || []).map(s => (
+                    <option key={s.id} value={s.id} disabled={newPeriodLeaderIds.includes(s.id)}>{s.name}</option>
+                  ))}
+                </select>
+                {newPeriodLeaderIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {newPeriodLeaderIds.map(id => {
+                      const person = staff?.find(s => s.id === id);
+                      return person ? (
+                        <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100">
+                          {person.name}
+                          <button type="button" onClick={() => setNewPeriodLeaderIds(prev => prev.filter(p => p !== id))} className="text-emerald-500 hover:text-emerald-800"><X className="w-3 h-3" /></button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -564,6 +616,94 @@ export default function PeriodManagementView({
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Görevli Personel</label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val) {
+                        const current = editingPeriod.assignedStaffIds || [];
+                        if (!current.includes(val)) {
+                          setEditingPeriod({ ...editingPeriod, assignedStaffIds: [...current, val] });
+                        }
+                      }
+                    }}
+                    className="w-full p-2.5 border border-gray-200 rounded-xl text-sm"
+                  >
+                    <option value="">Personel Ekle...</option>
+                    {(staff || []).map(s => (
+                      <option key={s.id} value={s.id} disabled={(editingPeriod.assignedStaffIds || []).includes(s.id)}>{s.name} - {s.role}</option>
+                    ))}
+                  </select>
+                  {(editingPeriod.assignedStaffIds || []).length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {(editingPeriod.assignedStaffIds || []).map(id => {
+                        const person = staff?.find(s => s.id === id);
+                        return person ? (
+                          <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">
+                            {person.name}
+                            <button type="button" onClick={() => {
+                              setEditingPeriod({
+                                ...editingPeriod,
+                                assignedStaffIds: (editingPeriod.assignedStaffIds || []).filter(p => p !== id)
+                              });
+                            }} className="text-blue-500 hover:text-blue-800"><X className="w-3 h-3" /></button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Kamp Liderleri</label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val) {
+                        const current = editingPeriod.leaderIds || (editingPeriod.leaderId ? [editingPeriod.leaderId] : []);
+                        if (!current.includes(val)) {
+                          const newIds = [...current, val];
+                          setEditingPeriod({ ...editingPeriod, leaderIds: newIds, leaderId: newIds.length > 0 ? newIds[0] : undefined });
+                        }
+                      }
+                    }}
+                    className="w-full p-2.5 border border-gray-200 rounded-xl bg-white text-sm"
+                  >
+                    <option value="">Lider Ekle...</option>
+                    {(staff || []).map(s => {
+                      const current = editingPeriod.leaderIds || (editingPeriod.leaderId ? [editingPeriod.leaderId] : []);
+                      return (
+                        <option key={s.id} value={s.id} disabled={current.includes(s.id)}>{s.name}</option>
+                      );
+                    })}
+                  </select>
+                  {((editingPeriod.leaderIds || (editingPeriod.leaderId ? [editingPeriod.leaderId] : []))).length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {((editingPeriod.leaderIds || (editingPeriod.leaderId ? [editingPeriod.leaderId] : []))).map(id => {
+                        const person = staff?.find(s => s.id === id);
+                        return person ? (
+                          <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100">
+                            {person.name}
+                            <button type="button" onClick={() => {
+                              const current = editingPeriod.leaderIds || (editingPeriod.leaderId ? [editingPeriod.leaderId] : []);
+                              const newIds = current.filter(p => p !== id);
+                              setEditingPeriod({
+                                ...editingPeriod,
+                                leaderIds: newIds,
+                                leaderId: newIds.length > 0 ? newIds[0] : undefined
+                              });
+                            }} className="text-emerald-500 hover:text-emerald-800"><X className="w-3 h-3" /></button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Kriterler / Başvuru Uyarıları</label>
                 <textarea
@@ -693,6 +833,33 @@ export default function PeriodManagementView({
                   <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100/50">
                     <p className="text-3xs text-amber-600 font-bold uppercase mb-1">Özel Kriterler</p>
                     <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{selectedPeriodDetail.criteria}</p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="space-y-3 pt-4 border-t border-gray-100">
+                <h4 className="text-sm font-bold text-gray-800 border-b pb-2">Personel Bilgileri</h4>
+                <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100/50">
+                  <p className="text-3xs text-emerald-600 font-bold uppercase mb-1">Kamp Liderleri</p>
+                  <ul className="text-sm font-bold text-emerald-900 list-disc list-inside">
+                    {(selectedPeriodDetail.leaderIds?.length ? selectedPeriodDetail.leaderIds : (selectedPeriodDetail.leaderId ? [selectedPeriodDetail.leaderId] : [])).map(leaderId => {
+                      const person = staff.find(s => s.id === leaderId);
+                      return <li key={leaderId}>{person ? person.name : 'Bilinmeyen Lider'}</li>;
+                    })}
+                    {!(selectedPeriodDetail.leaderIds?.length || selectedPeriodDetail.leaderId) && (
+                      <li>Atanmadı</li>
+                    )}
+                  </ul>
+                </div>
+                {selectedPeriodDetail.assignedStaffIds && selectedPeriodDetail.assignedStaffIds.length > 0 && (
+                  <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+                    <p className="text-3xs text-blue-600 font-bold uppercase mb-1">Görevli Personeller</p>
+                    <ul className="text-sm font-medium text-blue-900 list-disc list-inside">
+                      {selectedPeriodDetail.assignedStaffIds.map(staffId => {
+                        const person = staff.find(s => s.id === staffId);
+                        return <li key={staffId}>{person ? `${person.name} - ${person.role}` : 'Bilinmeyen Personel'}</li>;
+                      })}
+                    </ul>
                   </div>
                 )}
               </div>
