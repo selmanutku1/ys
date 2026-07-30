@@ -52,6 +52,31 @@ export default function PeriodManagementView({
     return true;
   };
 
+  const handleAutoAssignLeaders = (isEdit: boolean) => {
+    const availableLeaders = (staff || [])
+      .filter(s => s.role === 'Grup Lideri' || s.role === 'Kamp Koordinatörü')
+      .sort((a,b) => (b.performanceScore || 0) - (a.performanceScore || 0));
+    
+    if (availableLeaders.length === 0) return;
+
+    if (isEdit && editingPeriod) {
+      const current = editingPeriod.leaderIds || (editingPeriod.leaderId ? [editingPeriod.leaderId] : []);
+      const unassigned = availableLeaders.filter(l => !current.includes(l.id));
+      const toAssign = unassigned.slice(0, 2); // Assign top 2 available leaders
+      if (toAssign.length > 0) {
+        const newIds = [...current, ...toAssign.map(l => l.id)];
+        setEditingPeriod({ ...editingPeriod, leaderIds: newIds, leaderId: newIds.length > 0 ? newIds[0] : undefined });
+      }
+    } else {
+      const current = newPeriodLeaderIds;
+      const unassigned = availableLeaders.filter(l => !current.includes(l.id));
+      const toAssign = unassigned.slice(0, 2);
+      if (toAssign.length > 0) {
+        setNewPeriodLeaderIds([...current, ...toAssign.map(l => l.id)]);
+      }
+    }
+  };
+
   const handleCreatePeriod = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPeriodName) return;
@@ -314,7 +339,10 @@ export default function PeriodManagementView({
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-0.5 font-bold uppercase">Kamp Liderleri</label>
+                <div className="flex justify-between items-end mb-1">
+                  <label className="block text-gray-400 font-bold uppercase">Kamp Liderleri</label>
+                  <button type="button" onClick={() => handleAutoAssignLeaders(false)} className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md hover:bg-emerald-100 flex items-center gap-1 transition-colors border border-emerald-200 shadow-sm"><Sparkles className="w-3 h-3" /> Otomatik Ata</button>
+                </div>
                 <select
                   value=""
                   onChange={(e) => {
@@ -657,7 +685,10 @@ export default function PeriodManagementView({
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Kamp Liderleri</label>
+                  <div className="flex justify-between items-end mb-1">
+                    <label className="block text-xs font-bold text-gray-700">Kamp Liderleri</label>
+                    <button type="button" onClick={() => handleAutoAssignLeaders(true)} className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md hover:bg-emerald-100 flex items-center gap-1 transition-colors border border-emerald-200 shadow-sm"><Sparkles className="w-3 h-3" /> Otomatik Ata</button>
+                  </div>
                   <select
                     value=""
                     onChange={(e) => {

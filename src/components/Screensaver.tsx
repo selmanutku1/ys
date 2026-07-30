@@ -49,11 +49,7 @@ export default function Screensaver({ currentUser, onDismiss }: ScreensaverProps
 
   // Listen for user activity to bring up the lock password overlay
   useEffect(() => {
-    const handleActivityToUnlock = () => {
-      if (!isUnlocking) {
-        setIsUnlocking(true);
-      }
-    };
+    const handleActivityToUnlock = () => { onDismiss(); };
 
     // Any interaction on window will trigger the unlock screen
     window.addEventListener('mousemove', handleActivityToUnlock);
@@ -67,7 +63,7 @@ export default function Screensaver({ currentUser, onDismiss }: ScreensaverProps
       window.removeEventListener('keydown', handleActivityToUnlock);
       window.removeEventListener('touchstart', handleActivityToUnlock);
     };
-  }, [isUnlocking]);
+  }, [onDismiss]);
 
   const handleVerify = (codeToVerify?: string) => {
     const code = codeToVerify !== undefined ? codeToVerify : passcode;
@@ -233,120 +229,14 @@ export default function Screensaver({ currentUser, onDismiss }: ScreensaverProps
         {/* Quick wake indication */}
         <div 
           className="flex items-center gap-2 text-emerald-400 text-[10px] tracking-widest font-black uppercase cursor-pointer hover:text-emerald-300 transition duration-350"
-          onClick={() => setIsUnlocking(true)}
+          onClick={() => onDismiss()}
         >
           <span>Çıkış Yapmak İçin Fareyi Hareket Ettirin veya Tıklayın</span>
           <ArrowRight className="w-3.5 h-3.5 animate-bounce-horizontal" />
         </div>
       </div>
 
-      {/* PASSWORD UNLOCK OVERLAY (FROSTED GLASS MODAL) */}
-      <AnimatePresence>
-        {isUnlocking && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xl p-4"
-            onClick={(e) => {
-              // Click outside the unlock card to dismiss unlock mode
-              if (e.target === e.currentTarget) {
-                setIsUnlocking(false);
-                setPasscode('');
-                setError('');
-              }
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.9, y: 20, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 350 }}
-              className="bg-zinc-950/70 border border-emerald-500/25 rounded-3xl p-6 max-w-sm w-full shadow-[0_0_50px_rgba(16,185,129,0.15)] flex flex-col items-center text-center relative overflow-hidden"
-              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the card
-            >
-              {/* Decorative light reflection on top */}
-              <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-emerald-400/30 to-transparent" />
-
-              <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-4 text-emerald-400 animate-pulse">
-                <Lock className="w-5 h-5" />
-              </div>
-
-              {/* Logged in User Profile Info */}
-              <div className="flex flex-col items-center mb-4">
-                <div className={`w-14 h-14 rounded-full ${localStorage.getItem('kys_profile_color_' + currentUser?.id) || 'bg-emerald-600'} text-white flex items-center justify-center font-black text-lg shadow-md border-2 border-emerald-500/30 mb-2 uppercase`}>
-                  {userInitials}
-                </div>
-                <h3 className="font-extrabold text-base text-zinc-100 tracking-tight">{currentUser?.name || 'Saha Personeli'}</h3>
-                <span className="text-[10px] uppercase font-black tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md mt-1">
-                  {currentUser?.roleName || 'Personel'}
-                </span>
-              </div>
-
-              <p className="text-xs text-zinc-400 mb-2 font-medium">Güvenli Moddan Çıkmak İçin Şifrenizi Giriniz</p>
-              {/* Passcode Indicator Bullets */}
-              <div className="flex justify-center gap-4 my-4 relative">
-                {/* Hidden Input for Mobile Keyboard & Accessibility */}
-                <input
-                  ref={inputRef}
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
-                  autoFocus
-                  value={passcode}
-                  onChange={(e) => {
-                    setError('');
-                    const val = e.target.value.replace(/\D/g, '');
-                    setPasscode(val);
-                    if (val.length === 4) {
-                      setTimeout(() => handleVerify(val), 150);
-                    }
-                  }}
-                  className="opacity-0 absolute inset-0 w-full h-full z-10 cursor-text"
-                />
-                {[0, 1, 2, 3].map((index) => (
-                  <div
-                    key={index}
-                    className={`w-3.5 h-3.5 rounded-full border transition-all duration-200 ${
-                      index < passcode.length
-                        ? 'bg-emerald-400 border-emerald-400 scale-110 shadow-[0_0_10px_rgba(52,211,153,0.5)]'
-                        : 'border-white/20 bg-transparent'
-                    }`}
-                  />
-                ))}
-              </div>
-
-              {/* Error Message Container */}
-              <div className="h-6 text-center text-[11px] text-rose-400 font-bold tracking-wide mb-3 flex items-center justify-center">
-                {error && (
-                  <span className="flex items-center justify-center gap-1.5 animate-shake">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    {error}
-                  </span>
-                )}
-              </div>
-              {/* Actions & Hint */}
-              <div className="mt-6 space-y-3 w-full border-t border-white/5 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsUnlocking(false);
-                    setPasscode('');
-                    setError('');
-                  }}
-                  className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-emerald-400 transition cursor-pointer"
-                >
-                  Vazgeç (Kilidi Kapat)
-                </button>
-                <div className="text-[9px] text-zinc-500 leading-normal font-mono">
-                  {getExpectedPasscodeHint()}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      
       
       {/* Animation Styles */}
       <style>{`

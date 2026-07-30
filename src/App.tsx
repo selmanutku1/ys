@@ -151,7 +151,7 @@ export const USERS_LIST: LoginUser[] = [
     role: 'mudur',
     roleName: 'Kamp Operasyonları',
     allowedTabs: ['dashboard', 'kamp-planlama', 'bungalov', 'katilimci', 'kayit', 'revir', 'yemekhane', 'teknik', 'guvenlik', 'maliyet', 'anket-analizi', 'anket-yonetimi', 'dokümanlar', 'ayarlar', 'sistem-loglari', 'dijital-arsiv', 'olay-kayit', 'sistem-guncellemeleri', 'raporlar', 'bildirim-sablonlari'],
-    password: '55c5de31ec754ba40fb1687ff4f4e0d95142f5ca2765c4839b618329190a434b'
+    password: '6b5f40c09215713a1fa83ea2de2adcae17e605b8958a2d7379e15b561687ee8f'
   },
   {
     id: 'ADMIN',
@@ -160,7 +160,7 @@ export const USERS_LIST: LoginUser[] = [
     role: 'admin',
     roleName: 'Sistem Yöneticisi',
     allowedTabs: ['dashboard', 'kamp-planlama', 'bungalov', 'katilimci', 'kayit', 'revir', 'yemekhane', 'teknik', 'guvenlik', 'maliyet', 'anket-analizi', 'anket-yonetimi', 'dokümanlar', 'ayarlar', 'sistem-loglari', 'dijital-arsiv', 'olay-kayit', 'sistem-guncellemeleri', 'raporlar', 'bildirim-sablonlari'],
-    password: '55c5de31ec754ba40fb1687ff4f4e0d95142f5ca2765c4839b618329190a434b'
+    password: '6b5f40c09215713a1fa83ea2de2adcae17e605b8958a2d7379e15b561687ee8f'
   },
   {
     id: 'S01',
@@ -169,7 +169,7 @@ export const USERS_LIST: LoginUser[] = [
     role: 'mudur',
     roleName: 'Kamp Müdürü',
     allowedTabs: ['dashboard', 'kamp-planlama', 'bungalov', 'katilimci', 'revir', 'yemekhane', 'teknik', 'guvenlik', 'maliyet', 'anket-analizi', 'anket-yonetimi', 'dokümanlar', 'ayarlar', 'dijital-arsiv', 'olay-kayit', 'sistem-guncellemeleri', 'raporlar'],
-    password: '55c5de31ec754ba40fb1687ff4f4e0d95142f5ca2765c4839b618329190a434b'
+    password: '6b5f40c09215713a1fa83ea2de2adcae17e605b8958a2d7379e15b561687ee8f'
   },
   {
     id: 'S02',
@@ -274,8 +274,15 @@ export default function App() {
   const [selectedCenterId, setSelectedCenterId] = useState<string>('C01');
   
   const [bungalows, setBungalows] = useState<Bungalow[]>(INITIAL_BUNGALOWS);
-  const [staff, setStaff] = useState<Staff[]>(INITIAL_STAFF);
+  const [staff, setStaff] = useState<Staff[]>(() => {
+    const saved = localStorage.getItem('kys_staff');
+    return saved ? JSON.parse(saved) : INITIAL_STAFF;
+  });
   const [groups] = useState<Group[]>(INITIAL_GROUPS);
+
+  useEffect(() => {
+    localStorage.setItem('kys_staff', JSON.stringify(staff));
+  }, [staff]);
   
   const [periods, setPeriods] = useState<CampPeriod[]>(INITIAL_CAMP_PERIODS);
   const [participants, setParticipants] = useState<Participant[]>(INITIAL_PARTICIPANTS_COMBINED);
@@ -849,6 +856,7 @@ export default function App() {
       const savedTasks = localStorage.getItem('kys_tasks');
       const savedShifts = localStorage.getItem('kys_shifts');
       const savedActivities = localStorage.getItem('kys_activities');
+      const savedStaff = localStorage.getItem('kys_staff');
 
       if (savedParticipants) setParticipants(JSON.parse(savedParticipants));
       if (savedPeriods) setPeriods(JSON.parse(savedPeriods));
@@ -865,6 +873,7 @@ export default function App() {
       if (savedTasks) setTasks(JSON.parse(savedTasks));
       if (savedShifts) setShifts(JSON.parse(savedShifts));
       if (savedActivities) setActivities(JSON.parse(savedActivities));
+      if (savedStaff) setStaff(JSON.parse(savedStaff));
     }
     
     // Auto-select tab and camp center based on URL query or hash for convenient QR scanning!

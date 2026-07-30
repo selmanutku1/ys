@@ -4,7 +4,7 @@ import {
   Users, Plus, Edit2, X, Eye, Download, Star, Award, BookOpen, 
   Briefcase, GraduationCap, Phone, Mail, MapPin, Calendar, CheckCircle2, AlertCircle, ChevronRight, Search, Filter, ShieldCheck, Clock
 , User
-} from 'lucide-react';
+, ClipboardList, Sparkles } from 'lucide-react';
 
 interface KampLiderleriDefteriViewProps {
   staff: Staff[];
@@ -35,13 +35,63 @@ const PREDEFINED_CERTIFICATIONS = [
 export default function KampLiderleriDefteriView({ staff, setStaff, periods }: KampLiderleriDefteriViewProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [activeProfileTab, setActiveProfileTab] = useState<'detay' | 'geçmiş'>('detay');
+  const [activeProfileTab, setActiveProfileTab] = useState<'detay' | 'geçmiş' | 'aktif_gorevler'>('detay');
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [selectedLeader, setSelectedLeader] = useState<Staff | null>(null);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [filterName, setFilterName] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterExpertise, setFilterExpertise] = useState('');
+
+  const [mainTab, setMainTab] = useState<'profiller' | 'gorevdagitimi'>('profiller');
+  const [selectedTaskPeriodId, setSelectedTaskPeriodId] = useState<string>(periods.length > 0 ? periods[0].id : '');
+  const [activityTasks, setActivityTasks] = useState<{ id: string, title: string, type: string, time: string, location: string, assignedLeaderIds: string[] }[]>([
+    { id: 't1', title: 'Sabah Sporu ve Doğa Yürüyüşü', type: 'Spor', time: '08:00', location: 'Orman Parkuru', assignedLeaderIds: [] },
+    { id: 't2', title: 'Liderlik ve İletişim Atölyesi', type: 'Atölye', time: '10:30', location: 'Ana Salon', assignedLeaderIds: [] },
+    { id: 't3', title: 'Oryantiring ve Takım Oyunları', type: 'Atölye', time: '14:00', location: 'Kampüs Bahçesi', assignedLeaderIds: [] },
+    { id: 't4', title: 'Akşam Ateşi ve Değerlendirme', type: 'Eğlence', time: '20:30', location: 'Kamp Ateşi Alanı', assignedLeaderIds: [] },
+  ]);
+
+  const handleAutoAssignTasks = () => {
+    const period = periods.find(p => p.id === selectedTaskPeriodId);
+    let availableLeaders = leaders;
+    
+    // Yalnızca bu döneme atanmış liderler
+    if (period && (period.leaderIds?.length || period.leaderId)) {
+        const pLeaderIds = period.leaderIds?.length ? period.leaderIds : (period.leaderId ? [period.leaderId] : []);
+        availableLeaders = leaders.filter(l => pLeaderIds.includes(l.id));
+    }
+    
+    if (availableLeaders.length === 0) return;
+
+    setActivityTasks(prev => prev.map(task => {
+        let bestLeader = availableLeaders[Math.floor(Math.random() * availableLeaders.length)];
+        
+        // Yetkinlik/Uzmanlık eşleştirme algoritması (basit)
+        const taskKeywords = (task.title + " " + task.type).toLowerCase();
+        const matchedLeader = availableLeaders.find(leader => 
+            leader.expertise?.some(exp => taskKeywords.includes(exp.toLowerCase().split(' ')[0])) ||
+            leader.competencies?.toLowerCase().includes('liderlik')
+        );
+        
+        if (matchedLeader) bestLeader = matchedLeader;
+        
+        return { ...task, assignedLeaderIds: [bestLeader.id] };
+    }));
+  };
+
+  const handleManualAssign = (taskId: string, leaderId: string) => {
+    setActivityTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        const current = t.assignedLeaderIds;
+        const newIds = current.includes(leaderId) 
+          ? current.filter(id => id !== leaderId) 
+          : [...current, leaderId];
+        return { ...t, assignedLeaderIds: newIds };
+      }
+      return t;
+    }));
+  };
 
   const leaders = useMemo(() => (staff || []).filter(s => s.role === 'Grup Lideri' || s.role === 'Kamp Koordinatörü'), [staff]);
   
@@ -84,8 +134,35 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePicture(reader.result as string);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 256;
+          const MAX_HEIGHT = 256;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            setProfilePicture(canvas.toDataURL('image/jpeg', 0.8));
+          }
+        };
+        img.src = event.target?.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -162,6 +239,23 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-in fade-in duration-300">
       {/* Header Area */}
+      <div className="flex bg-gray-100 p-1 rounded-xl w-fit mx-auto mb-4">
+        <button
+          onClick={() => setMainTab('profiller')}
+          className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${mainTab === 'profiller' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          <div className="flex items-center gap-2"><Users className="w-4 h-4" /> Lider Profilleri</div>
+        </button>
+        <button
+          onClick={() => setMainTab('gorevdagitimi')}
+          className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${mainTab === 'gorevdagitimi' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          <div className="flex items-center gap-2"><ClipboardList className="w-4 h-4" /> Görev Dağıtım Modülü</div>
+        </button>
+      </div>
+      
+      {mainTab === 'profiller' ? (
+      <>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-4">
           <div className="p-3.5 bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-700 rounded-xl shadow-sm border border-emerald-100/50">
@@ -261,7 +355,7 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
               <div key={leader.id} className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 flex items-center gap-4 hover:bg-white/20 transition cursor-pointer" onClick={() => openProfile(leader)}>
                 <div className="relative">
                   {leader.profilePicture ? (
-                    <img src={leader.profilePicture} alt={leader.name} className="w-14 h-14 rounded-full object-cover border-2 border-white/20" />
+                    <img src={leader.profilePicture} alt={leader.name} className="w-14 h-14 rounded-full object-contain border-2 border-white/20" />
                   ) : (
                     <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-200 to-orange-400 text-amber-900 flex items-center justify-center font-black text-lg border-2 border-white/20">
                       {getInitials(leader.name)}
@@ -335,7 +429,8 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
         {filteredLeaders.length > 0 ? filteredLeaders.map((leader) => (
           <div 
             key={leader.id} 
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:border-emerald-200 transition-all group flex flex-col"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:border-emerald-200 transition-all group flex flex-col cursor-pointer"
+            onClick={() => openProfile(leader)}
           >
             {/* Card Header (Cover + Avatar) */}
             <div className="h-20 bg-gradient-to-r from-emerald-500 to-teal-400 relative">
@@ -356,7 +451,7 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
             <div className="px-5 pb-5 pt-0 flex-1 flex flex-col">
               <div className="flex justify-between items-start -mt-10 mb-3 relative z-10">
                 {leader.profilePicture ? (
-                  <img src={leader.profilePicture} alt={leader.name} className="w-20 h-20 rounded-2xl object-cover border-4 border-white shadow-sm bg-white" />
+                  <img src={leader.profilePicture} alt={leader.name} className="w-20 h-20 rounded-2xl object-contain border-4 border-white shadow-sm bg-white" />
                 ) : (
                   <div className="w-20 h-20 rounded-2xl bg-white border-4 border-white shadow-sm flex items-center justify-center font-black text-3xl text-emerald-600 bg-gradient-to-br from-emerald-50 to-emerald-100">
                     {getInitials(leader.name)}
@@ -405,13 +500,14 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
 
               <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between gap-2">
                 <button 
-                  onClick={() => openProfile(leader)}
+                  onClick={(e) => { e.stopPropagation(); openProfile(leader); }}
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors"
                 >
                   <Eye className="w-4 h-4" /> Profili İncele
                 </button>
                 <button 
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setEditingStaff(leader);
                     setIsModalOpen(true);
                   }}
@@ -452,7 +548,7 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
                   <p className="text-xs font-medium text-gray-500">Lider bilgilerini ve uzmanlık alanlarını güncelleyin</p>
                 </div>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors">
+              <button onClick={() => { setIsModalOpen(false); setProfilePicture(null); }} className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -496,7 +592,16 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
 
                 <div className="col-span-full">
                   <label className="block text-xs font-extrabold text-gray-700 mb-1.5">Profil Resmi (İsteğe Bağlı)</label>
-                  <input type="file" onChange={handleFileChange} accept="image/*" className="w-full text-sm font-medium text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer border border-gray-200 rounded-xl p-1" />
+                  <div className="flex items-center gap-4">
+                    {(profilePicture || editingStaff?.profilePicture) ? (
+                      <img src={profilePicture || editingStaff?.profilePicture} alt="Preview" className="w-16 h-16 rounded-xl object-contain border border-gray-200 shadow-sm shrink-0" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-200 border-dashed flex items-center justify-center text-gray-400 shrink-0">
+                        <User className="w-6 h-6" />
+                      </div>
+                    )}
+                    <input type="file" onChange={handleFileChange} accept="image/*" className="w-full text-sm font-medium text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer border border-gray-200 rounded-xl p-1" />
+                  </div>
                 </div>
 
                 {/* Professional Info Section */}
@@ -576,7 +681,7 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
             <div className="p-5 border-t border-gray-100 bg-gray-50 flex gap-3 justify-end shrink-0">
               <button 
                 type="button" 
-                onClick={() => setIsModalOpen(false)} 
+                onClick={() => { setIsModalOpen(false); setProfilePicture(null); }} 
                 className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-100 transition-colors shadow-sm"
               >
                 İptal
@@ -597,29 +702,27 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
       {isProfileOpen && selectedLeader && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95 duration-200">
-            {/* Modal Header Cover */}
-            <div className="h-32 bg-gradient-to-r from-emerald-600 to-teal-500 relative shrink-0">
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/diagmonds-light.png')] opacity-20"></div>
+            <div className="absolute top-4 right-4 z-50">
               <button 
                 onClick={() => setIsProfileOpen(false)} 
-                className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-colors"
+                className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="px-8 pb-8 pt-0 overflow-y-auto custom-scrollbar flex-1">
+            <div className="px-8 pb-8 pt-8 overflow-y-auto custom-scrollbar flex-1 relative">
               {/* Profile Main Info */}
-              <div className="flex flex-col md:flex-row gap-6 items-start relative z-10 -mt-12 mb-8">
+              <div className="flex flex-col md:flex-row gap-6 items-start relative z-10 mb-8">
                 {selectedLeader.profilePicture ? (
-                  <img src={selectedLeader.profilePicture} alt={selectedLeader.name} className="w-28 h-28 rounded-2xl object-cover border-4 border-white shadow-lg bg-white shrink-0" />
+                  <img src={selectedLeader.profilePicture} alt={selectedLeader.name} className="w-28 h-28 rounded-2xl object-contain border-2 border-gray-100 shadow-md bg-white shrink-0" />
                 ) : (
-                  <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 border-4 border-white shadow-lg flex items-center justify-center font-black text-4xl text-emerald-600 shrink-0">
+                  <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-100 shadow-md flex items-center justify-center font-black text-4xl text-emerald-600 shrink-0">
                     {getInitials(selectedLeader.name)}
                   </div>
                 )}
                 
-                <div className="flex-1 pt-14 md:pt-14 w-full">
+                <div className="flex-1 md:pt-4 w-full">
                   <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                     <div>
                       <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
@@ -665,6 +768,12 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
                   className={`pb-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-colors ${activeProfileTab === 'geçmiş' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                 >
                   <Calendar className="w-4 h-4" /> Görev Geçmişi ({leaderCamps.length})
+                </button>
+                <button 
+                  onClick={() => setActiveProfileTab('aktif_gorevler')}
+                  className={`pb-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-colors ${activeProfileTab === 'aktif_gorevler' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                  <ClipboardList className="w-4 h-4" /> Aktif Görevler
                 </button>
               </div>
 
@@ -813,11 +922,126 @@ export default function KampLiderleriDefteriView({ staff, setStaff, periods }: K
                       </div>
                       <h4 className="font-bold text-gray-900 text-lg">Görev Geçmişi Yok</h4>
                       <p className="text-gray-500 text-sm mt-1 max-w-sm">Bu lider henüz herhangi bir kampa atanmamış. Katılımcı yerleşimi sırasında görevlendirme yapabilirsiniz.</p>
+
+              {activeProfileTab === 'aktif_gorevler' && (
+                <div className="space-y-4">
+                  {activityTasks.filter(t => t.assignedLeaderIds.includes(selectedLeader.id)).length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {activityTasks.filter(t => t.assignedLeaderIds.includes(selectedLeader.id)).map(task => (
+                        <div key={task.id} className="bg-white border border-emerald-100 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                          <div className="flex justify-between items-start mb-2 pl-2">
+                            <span className="text-3xs font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">{task.type}</span>
+                            <span className="text-xs font-bold text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {task.time}</span>
+                          </div>
+                          <h3 className="font-bold text-gray-900 text-sm mb-1 pl-2">{task.title}</h3>
+                          <p className="text-xs text-gray-500 flex items-center gap-1 pl-2"><MapPin className="w-3 h-3" /> {task.location}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center py-12 bg-gray-50 rounded-2xl border border-gray-100 border-dashed">
+                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
+                        <CheckCircle2 className="w-8 h-8 text-gray-300" />
+                      </div>
+                      <h4 className="font-bold text-gray-900 text-lg">Aktif Görev Yok</h4>
+                      <p className="text-gray-500 text-sm mt-1 max-w-sm">Bu liderin şu anda atanmış olduğu aktif bir etkinlik görevi bulunmuyor.</p>
+                    </div>
+                  )}
+                </div>
+              )}
                     </div>
                   )}
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      </>
+      ) : (
+        /* GÖREV DAĞITIM MODÜLÜ */
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
+                  <ClipboardList className="w-6 h-6 text-emerald-600" />
+                  Görev ve Etkinlik Dağıtımı
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">Belirli bir kamp dönemi için etkinlik liderlerini atayın.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <select 
+                  value={selectedTaskPeriodId}
+                  onChange={e => setSelectedTaskPeriodId(e.target.value)}
+                  className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500 outline-none min-w-[200px]"
+                >
+                  <option value="" disabled>Kamp Dönemi Seçiniz</option>
+                  {periods.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleAutoAssignTasks}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-sm shadow-sm"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Otomatik Dağıtım Yap
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {activityTasks.map(task => (
+                <div key={task.id} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 rounded-l-2xl"></div>
+                  <div className="flex justify-between items-start mb-3 pl-2">
+                    <span className="text-3xs font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">{task.type}</span>
+                    <span className="text-xs font-bold text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {task.time}</span>
+                  </div>
+                  <h3 className="font-bold text-gray-900 text-sm mb-1 pl-2">{task.title}</h3>
+                  <p className="text-xs text-gray-500 flex items-center gap-1 mb-4 pl-2"><MapPin className="w-3 h-3" /> {task.location}</p>
+                  
+                  <div className="pl-2 border-t border-gray-100 pt-3">
+                    <p className="text-3xs font-bold text-gray-400 uppercase mb-2">Atanan Lider(ler)</p>
+                    <div className="flex flex-wrap gap-2 mb-3 min-h-[28px]">
+                      {task.assignedLeaderIds.length > 0 ? (
+                        task.assignedLeaderIds.map(id => {
+                          const l = leaders.find(x => x.id === id);
+                          if (!l) return null;
+                          return (
+                            <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-sm">
+                              {l.name}
+                              <button onClick={() => handleManualAssign(task.id, id)} className="hover:text-emerald-200 ml-1"><X className="w-3 h-3" /></button>
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-1 rounded-md border border-amber-100 w-full flex items-center justify-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5" /> Lider atanmadı
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Hızlı Ekleme Menüsü */}
+                    <select
+                      value=""
+                      onChange={e => {
+                        if(e.target.value) handleManualAssign(task.id, e.target.value);
+                      }}
+                      className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-700 outline-none focus:ring-1 focus:ring-emerald-500"
+                    >
+                      <option value="">+ Manuel Lider Ekle</option>
+                      {leaders.map(l => (
+                        <option key={l.id} value={l.id} disabled={task.assignedLeaderIds.includes(l.id)}>{l.name} ({l.expertise?.[0] || 'Genel'})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+
           </div>
         </div>
       )}

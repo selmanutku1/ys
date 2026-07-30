@@ -4,7 +4,7 @@ import {
   Home, Utensils, BookOpen, Compass, ShieldCheck, Users, Info, 
   HelpCircle, MessageSquare, Printer, Send, Edit2, Trash2, Plus, 
   Eye, Settings, AlertCircle, ClipboardList
-} from 'lucide-react';
+, BarChart2 } from 'lucide-react';
 import { 
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip 
 } from 'recharts';
@@ -286,18 +286,20 @@ export default function SurveyAnalysisView({
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h4 className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">{item.name}</h4>
-                      <p className="text-xs text-gray-500 mt-0.5">{item.camp} • {item.date}</p>
+                      <h4 className="text-lg font-black text-gray-900 group-hover:text-indigo-700 transition-colors">{item.name}</h4>
+                      <p className="text-sm text-gray-500 font-medium mt-1">{item.camp} • {item.date}</p>
                     </div>
-                    <div className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                      <span className="text-sm font-black text-gray-700">{item.genel}.0</span>
+                    <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <span className="text-base font-black text-amber-700">{item.genel}.0</span>
                     </div>
                   </div>
                   {item.feedback && (
-                    <p className="text-sm text-gray-600 italic line-clamp-2 mt-2 leading-relaxed">
-                      "{item.feedback}"
-                    </p>
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 mt-3">
+                      <p className="text-base text-gray-700 italic line-clamp-2 leading-relaxed font-medium">
+                        "{item.feedback}"
+                      </p>
+                    </div>
                   )}
                 </div>
               ))}
@@ -394,26 +396,26 @@ export default function SurveyAnalysisView({
                     <Icon className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-black text-gray-900 text-lg leading-tight">{cat.label}</h3>
-                    <p className="text-xs text-gray-500 font-medium">Kategori Detayları ve Puan Dağılımı</p>
+                    <h3 className="font-black text-gray-900 text-xl leading-tight">{cat.label}</h3>
+                    <p className="text-sm text-gray-500 font-medium mt-0.5">Kategori Detayları ve Puan Dağılımı</p>
                   </div>
                 </div>
-                <button onClick={() => setSelectedCategoryForModal(null)} className="p-2 hover:bg-gray-200 rounded-xl transition-colors text-gray-500">
-                  <X className="w-5 h-5" />
+                <button onClick={() => setSelectedCategoryForModal(null)} className="p-2.5 hover:bg-gray-200 rounded-xl transition-colors text-gray-500">
+                  <X className="w-6 h-6" />
                 </button>
               </div>
-              <div className="p-6 overflow-y-auto space-y-6 max-h-[70vh]">
-                <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-8 max-h-[75vh]">
+                <div className="flex items-center gap-6 bg-gray-50 p-6 rounded-2xl border border-gray-100">
                   <div className="flex-1">
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Ortalama Puan</p>
-                    <div className="flex items-baseline gap-1">
-                      <p className="text-3xl font-black text-gray-900">{avg}</p>
-                      <span className="text-sm font-bold text-gray-400">/ 5.0</span>
+                    <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Ortalama Puan</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <p className="text-4xl font-black text-gray-900">{avg}</p>
+                      <span className="text-base font-bold text-gray-400">/ 5.0</span>
                     </div>
                   </div>
                   <div className="flex-1">
-                     <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Toplam Yanıt</p>
-                     <p className="text-3xl font-black text-gray-900">{total}</p>
+                     <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Toplam Yanıt</p>
+                     <p className="text-4xl font-black text-gray-900">{total}</p>
                   </div>
                 </div>
 
@@ -599,70 +601,91 @@ export default function SurveyAnalysisView({
 
       {/* Response Detail Modal */}
       {selectedSurveyDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedSurveyDetail(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/80">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-black text-lg uppercase">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-gray-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedSurveyDetail(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] scale-in-95 animate-in duration-300" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 sm:p-8 border-b border-gray-100 bg-white">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white rounded-2xl flex items-center justify-center font-black text-2xl uppercase shadow-md shadow-emerald-500/20">
                   {selectedSurveyDetail.name.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="font-black text-gray-900 text-lg leading-tight">{selectedSurveyDetail.name}</h3>
-                  <p className="text-xs text-gray-500 font-medium">{selectedSurveyDetail.camp} • {selectedSurveyDetail.date}</p>
+                  <h3 className="font-black text-gray-900 text-2xl leading-tight">{selectedSurveyDetail.name}</h3>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md text-sm font-bold">{selectedSurveyDetail.camp}</span>
+                    <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md text-sm font-bold">{selectedSurveyDetail.date}</span>
+                  </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedSurveyDetail(null)} className="p-2 hover:bg-gray-200 rounded-xl transition-colors text-gray-500">
-                <X className="w-5 h-5" />
+              <button onClick={() => setSelectedSurveyDetail(null)} className="p-2.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto space-y-6">
+            
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-8 bg-gray-50/30">
               
-              <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-center justify-between">
+              {/* Overall Score */}
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-2xl border border-amber-200/60 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Genel Kamp Memnuniyeti</p>
-                  <p className="text-sm font-medium text-amber-900">Katılımcının kamp sürecine dair genel puanı</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="w-5 h-5 text-amber-500" />
+                    <h4 className="text-base font-black text-amber-900 uppercase tracking-wider">Genel Kamp Memnuniyeti</h4>
+                  </div>
+                  <p className="text-base font-medium text-amber-800/80">Katılımcının kamp sürecine dair genel değerlendirme puanı</p>
                 </div>
-                <div className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-amber-200 shadow-sm">
-                  <Sparkles className="w-5 h-5 text-amber-500" />
-                  <span className="text-2xl font-black text-amber-600">{selectedSurveyDetail.genel}.0</span>
+                <div className="flex items-center justify-center bg-white px-6 py-4 rounded-2xl border border-amber-200 shadow-sm min-w-[120px]">
+                  <span className="text-4xl font-black text-amber-600 tracking-tight">{selectedSurveyDetail.genel.toFixed(1)}</span>
+                  <span className="text-xl font-bold text-amber-400 ml-1">/ 5</span>
                 </div>
               </div>
 
+              {/* Category Scores */}
               <div>
-                <p className="text-sm font-bold text-gray-900 mb-3 border-b border-gray-100 pb-2">Kategori Puanları (1-5)</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <h4 className="text-lg font-black text-gray-900 mb-4 flex items-center gap-2">
+                  <BarChart2 className="w-5 h-5 text-indigo-500" /> Kategori Puanları
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {Object.keys(categoryDetailsMap).map(catKey => {
                     const cat = categoryDetailsMap[catKey];
                     const fieldKey = cat.key as keyof typeof selectedSurveyDetail;
                     const val = selectedSurveyDetail[fieldKey] as number;
+                    const isHigh = val >= 4;
+                    const isMid = val >= 3 && val < 4;
                     return (
-                      <div key={catKey} className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <cat.icon className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm font-semibold text-gray-700">{catKey}</span>
+                      <div key={catKey} className="bg-white border border-gray-200 p-4 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${cat.color}`}>
+                            <cat.icon className="w-5 h-5" />
+                          </div>
+                          <span className="text-base font-bold text-gray-700">{catKey}</span>
                         </div>
-                        <span className={`text-base font-black ${val >= 4 ? 'text-emerald-600' : val >= 3 ? 'text-amber-500' : 'text-red-500'}`}>{val}</span>
+                        <span className={`text-xl font-black ${isHigh ? 'text-emerald-600' : isMid ? 'text-amber-500' : 'text-red-500'}`}>
+                          {val}
+                        </span>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
+              {/* Feedback */}
               {selectedSurveyDetail.feedback && (
                 <div>
-                  <p className="text-sm font-bold text-gray-900 mb-3 border-b border-gray-100 pb-2 flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-indigo-500" /> Açık Uçlu Yorum
-                  </p>
-                  <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                    <p className="text-sm text-indigo-900 leading-relaxed italic">"{selectedSurveyDetail.feedback}"</p>
+                  <h4 className="text-lg font-black text-gray-900 mb-4 flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-indigo-500" /> Açık Uçlu Yorum
+                  </h4>
+                  <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 rounded-l-2xl"></div>
+                    <p className="text-lg text-gray-700 leading-relaxed italic font-medium relative z-10">"{selectedSurveyDetail.feedback}"</p>
                   </div>
                 </div>
               )}
             </div>
-            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+            
+            <div className="p-6 border-t border-gray-100 bg-white flex justify-end">
               <button 
                 onClick={() => setSelectedSurveyDetail(null)} 
-                className="px-5 py-2.5 bg-white border border-gray-200 rounded-xl font-bold text-sm text-gray-700 hover:bg-gray-100 transition-colors shadow-sm"
+                className="px-8 py-3 bg-gray-900 text-white rounded-xl font-bold text-base hover:bg-gray-800 transition-colors shadow-md"
               >
                 Kapat
               </button>
