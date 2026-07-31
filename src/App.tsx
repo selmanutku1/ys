@@ -1984,7 +1984,7 @@ export default function App() {
           {hasAccess('kamp-liderleri' as any) && (
             <SidebarNavItem
               id="kamp-liderleri"
-              label="Kamp Liderleri Defteri"
+              label="Kamp Liderleri"
               icon={Users}
               isActive={activeTab === 'kamp-liderleri'}
               isSidebarCollapsed={isSidebarCollapsed}
